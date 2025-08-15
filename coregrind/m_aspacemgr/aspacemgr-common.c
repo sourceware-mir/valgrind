@@ -177,7 +177,7 @@ SysRes VG_(am_do_mmap_NO_NOTIFY)( Addr start, SizeT length, UInt prot,
       fd = -1;
    res = VG_(do_syscall7)(__NR_mmap, (UWord)start, length,
 			  prot, flags, fd, offset, offset >> 32ul);
-#  elif defined(VGP_amd64_freebsd)
+#  elif defined(VGP_amd64_freebsd) || defined(VGP_arm64_freebsd)
    if ((flags & VKI_MAP_ANONYMOUS) && fd == 0)
       fd = -1;
    res = VG_(do_syscall6)(__NR_mmap, (UWord)start, length,
@@ -223,7 +223,7 @@ SysRes ML_(am_do_extend_mapping_NO_NOTIFY)(
    /* Extend the mapping old_addr .. old_addr+old_len-1 to have length
       new_len, WITHOUT moving it.  If it can't be extended in place,
       fail. */
-#  if defined(VGO_linux)
+#  if defined(VGO_linux) || defined(VGO_solaris)
    return VG_(do_syscall5)(
              __NR_mremap, 
              old_addr, old_len, new_len, 
@@ -244,7 +244,7 @@ SysRes ML_(am_do_relocate_nooverlap_mapping_NO_NOTIFY)(
       location and with the new length.  Only needs to handle the case
       where the two areas do not overlap, neither length is zero, and
       all args are page aligned. */
-#  if defined(VGO_linux)
+#  if defined(VGO_linux) || defined(VGO_solaris)
    return VG_(do_syscall5)(
              __NR_mremap, 
              old_addr, old_len, new_len, 

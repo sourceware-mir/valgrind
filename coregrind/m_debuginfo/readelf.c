@@ -859,7 +859,7 @@ void read_elf_symtab__normal(
          disym.isText    = is_text;
          disym.isIFunc   = is_ifunc;
          disym.isGlobal  = is_global;
-         if (cstr) { ML_(dinfo_free)(cstr); cstr = NULL; }
+         ML_(dinfo_free)(cstr);
          vg_assert(disym.pri_name);
          vg_assert(GET_TOCPTR_AVMA(disym.avmas) == 0);
          /* has no role except on ppc64be-linux */
@@ -879,7 +879,6 @@ void read_elf_symtab__normal(
                             GET_LOCAL_EP_AVMA(disym.avmas));
 	    }
          }
-
       }
    }
 }
@@ -1959,7 +1958,6 @@ Bool ML_(read_elf_object) ( struct _DebugInfo* di )
 
    vg_assert(di);
    vg_assert(di->fsm.have_rx_map == True);
-   vg_assert(di->fsm.rw_map_count >= 1);
    vg_assert(di->have_dinfo == False);
    vg_assert(di->fsm.filename);
    vg_assert(!di->symtab);
@@ -1990,7 +1988,7 @@ Bool ML_(read_elf_object) ( struct _DebugInfo* di )
          vg_assert(VG_IS_PAGE_ALIGNED(map->avma));
       }
       vg_assert(has_nonempty_rx);
-      vg_assert(has_nonempty_rw);
+      vg_assert(di->fsm.rw_map_count == 0 || has_nonempty_rw);
    }
 
    /* ----------------------------------------------------------
@@ -2421,18 +2419,18 @@ Bool ML_(read_elf_object) ( struct _DebugInfo* di )
 
       /* Accept .data where mapped as rw (data), even if zero-sized */
       if (0 == VG_(strcmp)(name, ".data")) {
+         if (inrw2) {
+            inrw = inrw2;
+         } else {
+            inrw = inrw1;
+         }
+
 #        if defined(SOLARIS_PT_SUNDWTRACE_THRP)
          if ((size == VKI_PT_SUNWDTRACE_SIZE) && (svma == dtrace_data_vaddr)) {
             TRACE_SYMTAB("ignoring .data section for dtrace_data "
                          "%#lx .. %#lx\n", svma, svma + size - 1);
          } else
 #        endif /* SOLARIS_PT_SUNDWTRACE_THRP */
-
-        if (inrw2) {
-           inrw = inrw2;
-        } else {
-           inrw = inrw1;
-        }
 
          if (inrw && !di->data_present) {
             di->data_present = True;
@@ -2490,7 +2488,12 @@ Bool ML_(read_elf_object) ( struct _DebugInfo* di )
             if (svma == tmp) { /* adjacent to previous .rodata* */
                di->rodata_size = size + tmp - di->rodata_svma;
             } else {
-               BAD(".rodata"); /* is OK, but we cannot handle multiple .rodata* */
+                /* is OK, but we cannot handle multiple .rodata* */
+               TRACE_SYMTAB("%s section avma = %#lx .. %#lx is not contiguous, not merged\n",
+                            name,
+                            di->rodata_avma,
+                            di->rodata_avma + di->rodata_size - 1);
+               goto out_rodata;
             }
          }
          if (inrx) {
@@ -2501,8 +2504,7 @@ Bool ML_(read_elf_object) ( struct _DebugInfo* di )
             di->rodata_avma += inrw1->bias;
             di->rodata_bias = inrw1->bias;
             di->rodata_debug_bias = inrw1->bias;
-         }
-         else {
+         } else {
             BAD(".rodata");  /* should not happen? */
          }
          di->rodata_present = True;
@@ -2515,6 +2517,7 @@ Bool ML_(read_elf_object) ( struct _DebugInfo* di )
          TRACE_SYMTAB("acquiring .rodata bias = %#lx\n",
                       (UWord)di->rodata_bias);
       }
+  out_rodata:
 
       if (0 == VG_(strcmp)(name, ".dynbss")) {
          if (inrw1 && !di->bss_present) {
@@ -2703,7 +2706,8 @@ Bool ML_(read_elf_object) ( struct _DebugInfo* di )
          || defined(VGP_mips32_linux) || defined(VGP_mips64_linux) \
          || defined(VGP_arm64_linux) || defined(VGP_nanomips_linux) \
          || defined(VGP_x86_solaris) || defined(VGP_amd64_solaris) \
-         || defined(VGP_x86_freebsd) || defined(VGP_amd64_freebsd)
+         || defined(VGP_x86_freebsd) || defined(VGP_amd64_freebsd) \
+         || defined(VGP_arm64_freebsd)
       /* Accept .plt where mapped as rx (code) */
       if (0 == VG_(strcmp)(name, ".plt")) {
          if (inrx && !di->plt_present) {
@@ -2977,6 +2981,46 @@ Bool ML_(read_elf_object) ( struct _DebugInfo* di )
    return retval;
 }
 
+static void find_rodata(Word i, Word shnum, DiImage* dimg, struct _DebugInfo* di, DiOffT shdr_dioff,
+                        UWord shdr_dent_szB, DiOffT shdr_strtab_dioff, PtrdiffT rw_dbias)
+{
+   ElfXX_Shdr a_shdr;
+   ElfXX_Shdr a_extra_shdr;
+   ML_(img_get)(&a_shdr, dimg,
+                INDEX_BIS(shdr_dioff, i, shdr_dent_szB),
+                sizeof(a_shdr));
+   if (di->rodata_present &&
+       0 == ML_(img_strcmp_c)(dimg, shdr_strtab_dioff
+                                    + a_shdr.sh_name, ".rodata")) {
+      Word sh_size = a_shdr.sh_size;
+      Word j;
+      Word next_addr = a_shdr.sh_addr + a_shdr.sh_size;
+      for (j = i  + 1; j < shnum; ++j) {
+         ML_(img_get)(&a_extra_shdr, dimg,
+                      INDEX_BIS(shdr_dioff, j, shdr_dent_szB),
+                      sizeof(a_shdr));
+         if (0 == ML_(img_strcmp_n)(dimg, shdr_strtab_dioff
+                                             + a_extra_shdr.sh_name, ".rodata", 7)) {
+            if (a_extra_shdr.sh_addr ==
+                VG_ROUNDUP(next_addr, a_extra_shdr.sh_addralign)) {
+               sh_size = VG_ROUNDUP(sh_size, a_extra_shdr.sh_addralign) + a_extra_shdr.sh_size;
+            }
+            next_addr = a_extra_shdr.sh_addr + a_extra_shdr.sh_size;
+         } else {
+            break;
+         }
+      }
+      vg_assert(di->rodata_size == sh_size);
+      vg_assert(di->rodata_avma +  a_shdr.sh_addr + rw_dbias);
+      di->rodata_debug_svma = a_shdr.sh_addr;
+      di->rodata_debug_bias = di->rodata_bias +
+                             di->rodata_svma - di->rodata_debug_svma;
+      TRACE_SYMTAB("acquiring .rodata  debug svma = %#lx .. %#lx\n",
+                   di->rodata_debug_svma,
+                   di->rodata_debug_svma + di->rodata_size - 1);
+      TRACE_SYMTAB("acquiring .rodata debug bias = %#lx\n", (UWord)di->rodata_debug_bias);
+   }
+}
 Bool ML_(read_elf_debug) ( struct _DebugInfo* di )
 {
    Word     i, j;
@@ -3391,7 +3435,11 @@ Bool ML_(read_elf_debug) ( struct _DebugInfo* di )
             FIND(text,   rx)
             FIND(data,   rw)
             FIND(sdata,  rw)
-            FIND(rodata, rw)
+            // https://bugs.kde.org/show_bug.cgi?id=476548
+            // special handling for rodata as adjacent
+            // rodata sections may have been merged in ML_(read_elf_object)
+            //FIND(rodata, rw)
+            find_rodata(i, ehdr_dimg.e_shnum, dimg, di, shdr_dioff, shdr_dent_szB, shdr_strtab_dioff, rw_dbias);
             FIND(bss,    rw)
             FIND(sbss,   rw)
 

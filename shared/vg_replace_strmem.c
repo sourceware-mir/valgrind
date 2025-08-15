@@ -106,6 +106,8 @@
    20460 MEMMEM
    20470 WMEMCMP
    20480 WCSNCPY
+   20490 MEMCCPY
+   20500 WCPNCPY
 */
 
 #if defined(VGO_solaris)
@@ -152,7 +154,7 @@ Bool is_overlap ( void* dst, const void* src, SizeT dstlen, SizeT srclen )
    }
 }
 
-
+#if defined(VGO_linux)
 /* Call here to exit if we can't continue.  On Android we can't call
    _exit for some reason, so we have to blunt-instrument it. */
 __attribute__ ((__noreturn__))
@@ -170,7 +172,7 @@ static inline void my_exit ( int x )
    _exit(x);
 #  endif
 }
-
+#endif
 
 // This is a macro rather than a function because we don't want to have an
 // extra function in the stack trace.
@@ -370,7 +372,7 @@ static inline void my_exit ( int x )
       if (is_overlap(dst_orig,  \
                      src_orig,  \
                      (Addr)dst-(Addr)dst_orig+1, \
-                     (Addr)src-(Addr)src_orig+1)) \
+                     (Addr)src-(Addr)src_orig)) \
          RECORD_OVERLAP_ERROR("strncat", dst_orig, src_orig, n); \
       \
       return dst_orig; \
@@ -431,6 +433,7 @@ static inline void my_exit ( int x )
    }
 
 #if defined(VGO_linux)
+ STRLCAT(VG_Z_LIBC_SONAME,   strlcat)
 
 #elif defined(VGO_freebsd)
  STRLCAT(VG_Z_LD_ELF_SO_1,   strlcat)
@@ -660,11 +663,8 @@ static inline void my_exit ( int x )
 
 #if defined(VGO_linux)
 
-#if defined(VGPV_arm_linux_android) || defined(VGPV_x86_linux_android) \
-    || defined(VGPV_mips32_linux_android)
  #define STRLCPY_CHECK_FOR_DSTSIZE_ZERO
  STRLCPY(VG_Z_LIBC_SONAME, strlcpy);
-#endif
 
 #elif defined(VGO_freebsd)
  #define STRLCPY_CHECK_FOR_DSTSIZE_ZERO
@@ -1001,6 +1001,10 @@ static inline void my_exit ( int x )
   /* _platform_memchr$VARIANT$Haswell */
   MEMCHR(libsystemZuplatformZddylib, _platform_memchr$VARIANT$Haswell)
 # endif
+# if DARWIN_VERS >= DARWIN_10_12
+  /* _platform_memchr$VARIANT$Base */
+  MEMCHR(libsystemZuplatformZddylib, _platform_memchr$VARIANT$Base)
+#endif
 
 #elif defined(VGO_solaris)
  MEMCHR(VG_Z_LIBC_SONAME, memchr)
@@ -1130,7 +1134,7 @@ static inline void my_exit ( int x )
 
 /* See https://bugs.kde.org/show_bug.cgi?id=402833
    why we disable the overlap check on x86_64.  */
-#if defined(VGP_amd64_linux)
+#if defined(VGP_amd64_linux) || defined(VGP_arm64_freebsd)
  #define MEMCPY(soname, fnname) \
    MEMMOVE_OR_MEMCPY(20180, soname, fnname, 0)
 #else
@@ -2324,7 +2328,7 @@ static inline void my_exit ( int x )
       \
       /* This checks for overlap after copying, unavoidable without */ \
       /* pre-counting length... should be ok */ \
-      /* +4 because sizeof(wchar_t) == 4 */ \
+      /* *4 because sizeof(wchar_t) == 4 */ \
       SizeT srclen = ((m < n) ? m+1 : n)*4; \
       RECORD_COPY(srclen); \
       if (is_overlap(dst_orig,  \
@@ -2343,6 +2347,85 @@ static inline void my_exit ( int x )
 #if defined(VGO_linux) || defined(VGO_freebsd)
  WCSNCPY(VG_Z_LIBC_SONAME, wcsncpy)
 #endif
+
+ /*---------------------- memccpy ----------------------*/
+
+ /* memccpy, mostly based on GNU libc source */
+#define MEMCCPY(soname, fnname) \
+ void* VG_REPLACE_FUNCTION_EZU(20490,soname,fnname) \
+    ( void *dst, const void *src, Int c, SizeT len ); \
+    void* VG_REPLACE_FUNCTION_EZU(20490,soname,fnname) \
+    ( void *dst, const void *src, Int c, SizeT len ) \
+ { \
+      const char *s = src; \
+      char *d = dst; \
+      const char x = c; \
+      SizeT i = len; \
+      \
+      while (i-- > 0) \
+         if ((*d++ = *s++) == x) { \
+            SizeT srclen = (i < len) ? i : len; \
+            RECORD_COPY(srclen); \
+            if (is_overlap(dst, src, srclen, srclen)) \
+               RECORD_OVERLAP_ERROR("memccpy", dst, src, len); \
+            return d; \
+         } \
+      \
+      if (len) { \
+         RECORD_COPY(len); \
+         if (is_overlap(dst, src, len, len)) \
+            RECORD_OVERLAP_ERROR("memccpy", dst, src, len); \
+      } \
+      return NULL; \
+ }
+
+#if defined(VGO_linux) || defined(VGO_freebsd) || defined(VGO_darwin) || defined(VGO_solaris)
+ MEMCCPY(VG_Z_LIBC_SONAME, memccpy)
+#endif
+
+ /*---------------------- wcpncpy ----------------------*/
+
+        // This is a wchar_t equivalent to strncpy.  We don't
+        // have wchar_t available here, but in the GNU C Library
+        // wchar_t is always 32 bits wide.
+
+#define WCPNCPY(soname, fnname) \
+ Int* VG_REPLACE_FUNCTION_EZU(20500,soname,fnname) \
+    ( Int* dst, const Int* src, SizeT n ); \
+    Int* VG_REPLACE_FUNCTION_EZU(20500,soname,fnname) \
+    ( Int* dst, const Int* src, SizeT n ) \
+ { \
+     const Int* src_orig = src; \
+     Int* dst_orig = dst; \
+     SizeT m = 0; \
+     \
+     while (m < n && *src) { \
+         m++; \
+         *dst++ = *src++; \
+     } \
+     \
+     /* This checks for overlap after copying, unavoidable without */ \
+     /* pre-counting length... should be ok */ \
+     /* *4 because sizeof(wchar_t) == 4 */ \
+     SizeT srclen = ((m < n) ? m+1 : n)*4; \
+     RECORD_COPY(srclen); \
+     if (is_overlap(dst_orig,  \
+                    src_orig,  \
+                    n*4, \
+                    srclen)) \
+     RECORD_OVERLAP_ERROR("wcpncpy", dst_orig, src_orig, 0); \
+     \
+     while (m++ < n) { \
+         *dst++ = 0; \
+     } \
+     \
+ return dst_orig + (src - src_orig); \
+  }
+
+#if defined(VGO_linux) || defined(VGO_freebsd) || defined(VGO_solaris)
+ WCPNCPY(VG_Z_LIBC_SONAME, wcpncpy)
+#endif
+
 
 /*------------------------------------------------------------*/
 /*--- Improve definedness checking of process environment  ---*/

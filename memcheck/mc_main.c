@@ -2709,10 +2709,16 @@ static OCacheLine* find_OCacheLine_SLOW ( Addr a )
    /* we already tried line == 0; skip therefore. */
    for (line = 1; line < OC_LINES_PER_SET; line++) {
       if (ocacheL1->set[setno].line[line].tag == tag) {
-         if (line == 1) {
+         switch (line) {
+         // with OC_LINES_PER_SET equal to 2 this is the only possible case
+         case 1:
             stats_ocacheL1_found_at_1++;
-         } else {
+            break;
+#if OC_LINES_PER_SET > 2
+         default:
             stats_ocacheL1_found_at_N++;
+            break;
+#endif
          }
          if (UNLIKELY(0 == (ocacheL1_event_ctr++
                             & ((1<<OC_MOVE_FORWARDS_EVERY_BITS)-1)))) {
@@ -7266,6 +7272,32 @@ static Bool mc_handle_client_request ( ThreadId tid, UWord* arg, UWord* ret )
             MC_(record_size_mismatch_error) ( tid, mc, aligned_alloc_info->size, "new[][/delete[]" );
          }
          break;
+      case AllocKindFreeSized:
+         mc = VG_(HT_lookup) ( MC_(malloc_list), (UWord)aligned_alloc_info->mem );
+         if (mc && mc->szB != aligned_alloc_info->size) {
+            MC_(record_size_mismatch_error) ( tid, mc, aligned_alloc_info->size, "aligned_alloc/free_sized" );
+         }
+         break;
+      case AllocKindFreeAlignedSized:
+         // same alignment checks as aligned_alloc
+         if ((aligned_alloc_info->orig_alignment & (aligned_alloc_info->orig_alignment - 1)) != 0) {
+            MC_(record_bad_alignment) ( tid, aligned_alloc_info->orig_alignment , 0U, " (should be a power of 2)" );
+         }
+         if (aligned_alloc_info->orig_alignment &&
+             aligned_alloc_info->size % aligned_alloc_info->orig_alignment != 0U) {
+            MC_(record_bad_alignment) ( tid, aligned_alloc_info->orig_alignment , aligned_alloc_info->size, " (size should be a multiple of alignment)" );
+         }
+         if (aligned_alloc_info->size == 0) {
+            MC_(record_bad_size) ( tid, aligned_alloc_info->size, "free_aligned_sized()" );
+         }
+         mc = VG_(HT_lookup) ( MC_(malloc_list), (UWord)aligned_alloc_info->mem );
+         if (mc && aligned_alloc_info->orig_alignment != mc->alignB) {
+            MC_(record_align_mismatch_error) ( tid, mc, aligned_alloc_info->orig_alignment, False, "aligned_alloc/free_aligned_sized");
+         }
+         if (mc && mc->szB != aligned_alloc_info->size) {
+            MC_(record_size_mismatch_error) ( tid, mc, aligned_alloc_info->size, "aligned_alloc/free_aligned_sized" );
+         }
+         break;
       case AllocKindNewAligned:
          if (aligned_alloc_info->orig_alignment == 0 ||
              (aligned_alloc_info->orig_alignment & (aligned_alloc_info->orig_alignment - 1)) != 0) {
@@ -8523,7 +8555,7 @@ static void mc_pre_clo_init(void)
    VG_(details_version)         (NULL);
    VG_(details_description)     ("a memory error detector");
    VG_(details_copyright_author)(
-      "Copyright (C) 2002-2022, and GNU GPL'd, by Julian Seward et al.");
+      "Copyright (C) 2002-2024, and GNU GPL'd, by Julian Seward et al.");
    VG_(details_bug_reports_to)  (VG_BUGS_TO);
    VG_(details_avg_translation_sizeB) ( 640 );
 
@@ -8534,7 +8566,7 @@ static void mc_pre_clo_init(void)
    VG_(needs_final_IR_tidy_pass)  ( MC_(final_tidy) );
 
 
-   VG_(needs_core_errors)         ();
+   VG_(needs_core_errors)         (True);
    VG_(needs_tool_errors)         (MC_(eq_Error),
                                    MC_(before_pp_Error),
                                    MC_(pp_Error),

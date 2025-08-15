@@ -285,7 +285,15 @@ static void DRD_(init)(void)
        * is neither. So we force loading of libthr.so, which
        * avoids this junk tid value.
        */
+#if (FREEBSD_VERS >= FREEBSD_15)
+      void* libsys = dlopen("/lib/libsys.so.7", RTLD_NOW|RTLD_GLOBAL|RTLD_NODELETE);
+#endif
       dlclose(dlopen("/lib/libthr.so.3", RTLD_NOW|RTLD_GLOBAL|RTLD_NODELETE));
+#if (FREEBSD_VERS >= FREEBSD_15)
+      if (libsys) {
+         dlclose(libsys);
+      }
+#endif
    }
 #endif
 
@@ -360,25 +368,28 @@ static MutexT DRD_(pthread_to_drd_mutex_type)(int kind)
    kind &= PTHREAD_MUTEX_RECURSIVE | PTHREAD_MUTEX_ERRORCHECK |
       PTHREAD_MUTEX_NORMAL | PTHREAD_MUTEX_DEFAULT;
 
-   if (kind == PTHREAD_MUTEX_RECURSIVE)
+   if (kind == PTHREAD_MUTEX_RECURSIVE) {
       return mutex_type_recursive_mutex;
-   else if (kind == PTHREAD_MUTEX_ERRORCHECK)
+   }
+   if (kind == PTHREAD_MUTEX_ERRORCHECK) {
       return mutex_type_errorcheck_mutex;
-   else if (kind == PTHREAD_MUTEX_NORMAL)
+   }
+   if (kind == PTHREAD_MUTEX_NORMAL) {
       return mutex_type_default_mutex;
-   else if (kind == PTHREAD_MUTEX_DEFAULT)
-      // @todo PJF what about Solaris?
-#if defined(VGO_freebsd)
-      return mutex_type_errorcheck_mutex;
-#else
+   }
+   if (kind == PTHREAD_MUTEX_DEFAULT) {
+      // On FreeBSD PTHREAD_MUTEX_DEFAULT is the same as PTHREAD_MUTEX_ERRORCHECK
+      // so this code is unreachable, but that's not true for all platforms
+      // so just ignore the warning
+      // coverity[DEADCODE:FALSE]
       return mutex_type_default_mutex;
-#endif
+   }
 #if defined(HAVE_PTHREAD_MUTEX_ADAPTIVE_NP)
-   else if (kind == PTHREAD_MUTEX_ADAPTIVE_NP)
+   if (kind == PTHREAD_MUTEX_ADAPTIVE_NP) {
       return mutex_type_default_mutex;
+   }
 #endif
-   else
-      return mutex_type_invalid_mutex;
+   return mutex_type_invalid_mutex;
 }
 
 #if defined(VGO_solaris)
@@ -1624,6 +1635,28 @@ PTH_FUNCS(int, semaZureltimedwait, sem_timedwait_intercept,
           (sem_t *sem, const struct timespec *timeout),
           (sem, timeout));
 #endif /* VGO_solaris */
+
+#if defined(VGO_freebsd)
+static __always_inline
+   int sem_clockwait_np_intercept(sem_t* sem, clockid_t clock_id, int flags,
+                                  const struct timespec * rqtp, struct timespec * rmtp)
+{
+   int   ret;
+   OrigFn fn;
+   VALGRIND_GET_ORIG_FN(fn);
+   VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ_DRD_PRE_SEM_WAIT,
+                                   sem, 0, 0, 0, 0);
+   CALL_FN_W_5W(ret, fn, sem, clock_id, flags, rqtp, rmtp);
+   VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ_DRD_POST_SEM_WAIT,
+                                   sem, ret == 0, 0, 0, 0);
+   return ret;
+}
+
+LIBC_FUNC(int, semZuclockwaitZunp, sem_clockwait_np_intercept,
+          (sem_t* sem, clockid_t clock_id, int flags,
+           const struct timespec * rqtp, struct timespec * rmtp),
+          (sem, clock_id, flags, rqtp, rmtp));
+#endif
 
 static __always_inline int sem_post_intercept(sem_t *sem)
 {

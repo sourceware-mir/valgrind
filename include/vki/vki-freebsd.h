@@ -53,6 +53,8 @@
 #  include "vki-machine-types-x86-freebsd.h"
 #elif defined(VGA_amd64)
 #  include "vki-machine-types-amd64-freebsd.h"
+#elif defined(VGA_arm64)
+#  include "vki-machine-types-arm64-freebsd.h"
 #else
 #  error Unknown platform
 #endif
@@ -195,6 +197,8 @@ typedef __vki_fd_set    vki_fd_set;
 #  include "vki-x86-freebsd.h"
 #elif defined(VGA_amd64)
 #  include "vki-amd64-freebsd.h"
+#elif defined(VGA_arm64)
+#  include "vki-arm64-freebsd.h"
 #else
 #  error Unknown platform
 #endif
@@ -1086,6 +1090,11 @@ extern unsigned int __vki_invalid_size_argument_for_IOC;
 #define VKI_FIOASYNC _VKI_IOW('f', 125, int)
 #define VKI_FIOSETOWN   _VKI_IOW('f', 124, int)
 #define VKI_FIOGETOWN   _VKI_IOW('f', 123, int)
+struct vki_fiodgname_arg {
+   int     len;
+   void    *buf;
+};
+#define VKI_FIODGNAME   _VKI_IOW('f', 120, struct vki_fiodgname_arg) /* get dev. name */
 
 // See syswrap-freebsd.c PRE/POST(sys_ioctl)
 #if 0
@@ -1236,12 +1245,12 @@ struct vki_mq_attr {
 #define  VKI_UCF_SWAPPED   1
 
 struct vki_ucontext {
-   vki_sigset_t      uc_sigmask;
+   vki_sigset_t         uc_sigmask;
    struct vki_mcontext  uc_mcontext;
-   struct vki_ucontext  *uc_link;
-   vki_stack_t    uc_stack;
-   int         uc_flags;
-   unsigned int      __spare__[4];
+   struct vki_ucontext* uc_link;
+   vki_stack_t          uc_stack;
+   int                  uc_flags;
+   unsigned int         __spare__[4];
 };
 
 //----------------------------------------------------------------------
@@ -1265,7 +1274,7 @@ struct vki_utsname {
 #define VKI_IPC_RMID 0     /* remove resource */
 #define VKI_IPC_SET  1     /* set ipc_perm options */
 #define VKI_IPC_STAT 2     /* get ipc_perm options */
-#define VKI_IPC_INFO 3     /* see ipcs */
+#define VKI_IPC_INFO 3     /* only used by Linux compatibilty shm_ctl */
 
 //----------------------------------------------------------------------
 // From sys/ipc.h
@@ -1593,6 +1602,12 @@ struct vki_dirent {
 #define VKI_F_SEAL_GROW    0x0004
 #define VKI_F_SEAL_WRITE   0x0008
 
+struct vki_spacectl_range {
+   vki_off_t   r_offset;
+   vki_off_t   r_len;
+};
+
+
 //----------------------------------------------------------------------
 // From sys/unistd.h
 //----------------------------------------------------------------------
@@ -1607,6 +1622,13 @@ struct vki_dirent {
 #define VKI_R_OK  0x04    /* test for read permission */
 
 #define VKI_RFSPAWN         (1U<<31U)
+
+/* kcmp() options. */
+#define VKI_KCMP_FILE       100
+#define VKI_KCMP_FILEOBJ    101
+#define VKI_KCMP_FILES      102
+#define VKI_KCMP_SIGHAND    103
+#define VKI_KCMP_VM         104
 
 #define VKI_CLOSE_RANGE_CLOEXEC     (1<<2)
 
@@ -1966,7 +1988,7 @@ typedef union vki_modspecific {
 #if defined(VGP_x86_freebsd)
    vki_int32_t longval;
    vki_uint32_t   u_longval;
-#elif defined(VGP_amd64_freebsd)
+#elif defined(VGP_amd64_freebsd) || defined(VGP_arm64_freebsd)
    vki_int64_t longval;
    vki_uint64_t   u_longval;
 #else
@@ -2073,7 +2095,7 @@ struct vki_umtx_robust_lists_params {
 #define VKI_UMTX_OP_SEM2_WAKE       24
 #define VKI_UMTX_OP_SHM             25
 #define VKI_UMTX_OP_ROBUST_LISTS    26
-#if (FREEBSD_VERS >= FREEBSD_14)
+#if (FREEBSD_VERS >= FREEBSD_13_3)
 #define VKI_UMTX_OP_GET_MIN_TIMEOUT 27
 #define VKI_UMTX_OP_SET_MIN_TIMEOUT 28
 #endif
@@ -2153,6 +2175,8 @@ typedef struct vki_cap_rights       vki_cap_rights_t;
 #define VKI_KVME_TYPE_DEVICE        4
 #define VKI_KVME_TYPE_PHYS          5
 #define VKI_KVME_TYPE_DEAD          6
+#define VKI_KVME_TYPE_MGTDEVICE     8
+#define VKI_KVME_TYPE_GUARD         9
 #define VKI_KVME_TYPE_UNKNOWN       255
 
 #define VKI_KVME_PROT_READ          0x00000001
@@ -2161,6 +2185,11 @@ typedef struct vki_cap_rights       vki_cap_rights_t;
 
 #define VKI_KVME_FLAG_COW           0x00000001
 #define VKI_KVME_FLAG_NEEDS_COPY    0x00000002
+#define VKI_KVME_FLAG_NOCOREDUMP    0x00000004
+#define VKI_KVME_FLAG_SUPER         0x00000008
+#define VKI_KVME_FLAG_GROWS_UP      0x00000010
+#define VKI_KVME_FLAG_GROWS_DOWN    0x00000020
+#define VKI_KVME_FLAG_USER_WIRED    0x00000040
 
 struct vki_kinfo_vmentry {
    int   kve_structsize;
@@ -2548,8 +2577,41 @@ struct vki_ps_strings {
 
 
 #define VKI_NT_FREEBSD_ABI_TAG 1
-#define VKI_NT_FREEBSD_FEATURE_CTL	4
-#define VKI_NT_FREEBSD_FCTL_WXNEEDED	0x00000008
+#define VKI_NT_FREEBSD_FEATURE_CTL 4
+#define VKI_NT_FREEBSD_FCTL_STKGAP_DISABLE 0x00000004
+#define VKI_NT_FREEBSD_FCTL_WXNEEDED 0x00000008
+
+
+/*
+ * PJF this is a bit messy
+ *
+ * mode_t is uint16_t
+ * No problem on x86/amd64
+ * On arm64 there are syscalls that take mode_t but that doesn't
+ * work with memcheck validation - arm64 doesn't have any 16bit
+ * registers.
+ *
+ * I can't just change mode_t to be 32bit. that will mess up
+ * the 'stat' structures in thie file.
+ *
+ * Instead I'll just do what the compiler does, and promote
+ * it to 32bits.
+ *
+ * In the kernel, the syscall interface just pushes all
+ * possible syscall args onto the stack and then
+ * memcpy's them into an array of register sized args.
+ * There's a struct defined for each syscall's arguments
+ * that uses padding to type pun the values back to
+ * the type passed in from userland. The structs are
+ * generated from the syscall table.
+ *
+ * vki_mode_t is only used in syswrap files so there shouldn't
+ * be any other side effects.
+ */
+
+#if defined(VGP_arm64_freebsd)
+#define vki_mode_t vki_int32_t
+#endif
 
 // See syswrap-freebsd.c PRE/POST(sys_ioctl)
 #if 0

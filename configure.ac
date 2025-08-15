@@ -15,10 +15,10 @@
 # Also set the (expected/last) release date here.
 # Do not forget to rerun ./autogen.sh
 m4_define([v_major_ver], [3])
-m4_define([v_minor_ver], [22])
+m4_define([v_minor_ver], [23])
 m4_define([v_micro_ver], [0])
 m4_define([v_suffix_ver], [])
-m4_define([v_rel_date], ["31 Oct 2023"])
+m4_define([v_rel_date], ["26 Apr 2024"])
 m4_define([v_version],
 	  m4_if(v_suffix_ver, [],
 		[v_major_ver.v_minor_ver.v_micro_ver],
@@ -237,6 +237,8 @@ AC_MSG_CHECKING([for a supported CPU])
 # Endian.  Similarly, ppc64le or PPC64LE refer to only 64-bit systems that are
 # Little Endian.
 
+VGCONF_PLATFORM_ARM_ARCH=
+
 case "${host_cpu}" in
      i?86) 
 	AC_MSG_RESULT([ok (${host_cpu})])
@@ -271,10 +273,23 @@ case "${host_cpu}" in
         ARCH_MAX="s390x"
         ;;
 
+     armv8*)
+        AC_MSG_RESULT([ok (${host_cpu})])
+        VGCONF_PLATFORM_ARM_ARCH="-marm -mcpu=cortex-a8"
+        ARCH_MAX="arm"
+        ;;
+
      armv7*)
-	AC_MSG_RESULT([ok (${host_cpu})])
-	ARCH_MAX="arm"
-	;;
+        AC_MSG_RESULT([ok (${host_cpu})])
+        VGCONF_PLATFORM_ARM_ARCH="-marm -mcpu=cortex-a8"
+        ARCH_MAX="arm"
+        ;;
+
+     arm*)
+        AC_MSG_RESULT([ok (${host_cpu})])
+        VGCONF_PLATFORM_ARM_ARCH="-march=armv6"
+        ARCH_MAX="arm"
+        ;;
 
      aarch64*)
        AC_MSG_RESULT([ok (${host_cpu})])
@@ -315,6 +330,8 @@ case "${host_cpu}" in
 	AC_MSG_ERROR([Unsupported host architecture. Sorry])
 	;;
 esac
+
+AC_SUBST(VGCONF_PLATFORM_ARM_ARCH)
 
 #----------------------------------------------------------------------------
 
@@ -396,6 +413,8 @@ case "${host_os}" in
         freebsd_13_1=1310
         AC_DEFINE([FREEBSD_13_2], 1320, [FREEBSD_VERS value for FreeBSD 13.2])
         freebsd_13_2=1320
+        AC_DEFINE([FREEBSD_13_3], 1330, [FREEBSD_VERS value for FreeBSD 13.3])
+        freebsd_13_3=1330
         AC_DEFINE([FREEBSD_14], 1400, [FREEBSD_VERS value for FreeBSD 14.x])
         freebsd_14=1400
         AC_DEFINE([FREEBSD_15], 1500, [FREEBSD_VERS value for FreeBSD 15.x])
@@ -445,6 +464,11 @@ case "${host_os}" in
               AC_MSG_RESULT([FreeBSD 13.2 (${kernel})])
               AC_DEFINE([FREEBSD_VERS], FREEBSD_13_2, [FreeBSD version])
               freebsd_vers=$freebsd_13_2
+              ;;
+           13.3-*)
+              AC_MSG_RESULT([FreeBSD 13.3 (${kernel})])
+              AC_DEFINE([FREEBSD_VERS], FREEBSD_13_3, [FreeBSD version])
+              freebsd_vers=$freebsd_13_3
               ;;
            *)
               AC_MSG_RESULT([unsupported (${kernel})])
@@ -799,18 +823,31 @@ case "$ARCH_MAX-$VGCONF_OS" in
            VGCONF_PLATFORM_PRI_CAPS="AMD64_FREEBSD"
            VGCONF_PLATFORM_SEC_CAPS="X86_FREEBSD"
         fi
-	# These work with either base clang or ports installed gcc
-	# Hand rolled compilers probably need INSTALL_DIR/lib (at least for gcc)
+        # These work with either base clang or ports installed gcc
+        # Hand rolled compilers probably need INSTALL_DIR/lib (at least for gcc)
         if test x$is_clang = xclang ; then
            FLAG_32ON64="-B/usr/lib32"
         else
            GCC_MAJOR_VERSION=`${CC} -dumpversion | $SED 's/\..*//' 2>/dev/null`
            FLAG_32ON64="-B/usr/local/lib32/gcc${GCC_MAJOR_VERSION} -Wl,-rpath,/usr/local/lib32/gcc${GCC_MAJOR_VERSION}/"
+           FLAG_32ON64_GXX="-L/usr/local/lib32/gcc${GCC_MAJOR_VERSION} -lgcc_s"
+           AC_SUBST(FLAG_32ON64_GXX)
         fi
         valt_load_address_pri_norml="0x38000000"
         valt_load_address_pri_inner="0x28000000"
         valt_load_address_sec_norml="0x38000000"
         valt_load_address_sec_inner="0x28000000"
+        AC_MSG_RESULT([ok (${ARCH_MAX}-${VGCONF_OS})])
+        ;;
+     arm64-freebsd)
+        VGCONF_ARCH_PRI="arm64"
+        VGCONF_ARCH_SEC=""
+        VGCONF_PLATFORM_PRI_CAPS="ARM64_FREEBSD"
+        VGCONF_PLATFORM_SEC_CAPS=""
+        valt_load_address_pri_norml="0x38000000"
+        valt_load_address_pri_inner="0x28000000"
+        valt_load_address_sec_norml="0xUNSET"
+        valt_load_address_sec_inner="0xUNSET"
         AC_MSG_RESULT([ok (${ARCH_MAX}-${VGCONF_OS})])
         ;;
      # Darwin gets identified as 32-bit even when it supports 64-bit.
@@ -822,43 +859,43 @@ case "$ARCH_MAX-$VGCONF_OS" in
         ARCH_MAX="amd64"
         valt_load_address_sec_norml="0xUNSET"
         valt_load_address_sec_inner="0xUNSET"
-	if test x$vg_cv_only64bit = xyes; then
+        if test x$vg_cv_only64bit = xyes; then
            VGCONF_ARCH_PRI="amd64"
            VGCONF_ARCH_SEC=""
-	   VGCONF_PLATFORM_PRI_CAPS="AMD64_DARWIN"
-	   VGCONF_PLATFORM_SEC_CAPS=""
+           VGCONF_PLATFORM_PRI_CAPS="AMD64_DARWIN"
+           VGCONF_PLATFORM_SEC_CAPS=""
            valt_load_address_pri_norml="0x158000000"
            valt_load_address_pri_inner="0x138000000"
-	elif test x$vg_cv_only32bit = xyes; then
+        elif test x$vg_cv_only32bit = xyes; then
            VGCONF_ARCH_PRI="x86"
            VGCONF_ARCH_SEC=""
-	   VGCONF_PLATFORM_PRI_CAPS="X86_DARWIN"
-	   VGCONF_PLATFORM_SEC_CAPS=""
-	   VGCONF_ARCH_PRI_CAPS="x86"
+           VGCONF_PLATFORM_PRI_CAPS="X86_DARWIN"
+           VGCONF_PLATFORM_SEC_CAPS=""
+           VGCONF_ARCH_PRI_CAPS="x86"
            valt_load_address_pri_norml="0x58000000"
            valt_load_address_pri_inner="0x38000000"
-	else
+        else
            VGCONF_ARCH_PRI="amd64"
            VGCONF_ARCH_SEC="x86"
-	   VGCONF_PLATFORM_PRI_CAPS="AMD64_DARWIN"
-	   VGCONF_PLATFORM_SEC_CAPS="X86_DARWIN"
+           VGCONF_PLATFORM_PRI_CAPS="AMD64_DARWIN"
+           VGCONF_PLATFORM_SEC_CAPS="X86_DARWIN"
            valt_load_address_pri_norml="0x158000000"
            valt_load_address_pri_inner="0x138000000"
            valt_load_address_sec_norml="0x58000000"
            valt_load_address_sec_inner="0x38000000"
-	fi
+        fi
         AC_MSG_RESULT([ok (${ARCH_MAX}-${VGCONF_OS})])
-	;;
+        ;;
      arm-linux) 
-	VGCONF_ARCH_PRI="arm"
-	VGCONF_PLATFORM_PRI_CAPS="ARM_LINUX"
-	VGCONF_PLATFORM_SEC_CAPS=""
-	valt_load_address_pri_norml="0x58000000"
-	valt_load_address_pri_inner="0x38000000"
+        VGCONF_ARCH_PRI="arm"
+        VGCONF_PLATFORM_PRI_CAPS="ARM_LINUX"
+        VGCONF_PLATFORM_SEC_CAPS=""
+        valt_load_address_pri_norml="0x58000000"
+        valt_load_address_pri_inner="0x38000000"
         valt_load_address_sec_norml="0xUNSET"
         valt_load_address_sec_inner="0xUNSET"
-	AC_MSG_RESULT([ok (${host_cpu}-${host_os})])
-	;;
+        AC_MSG_RESULT([ok (${host_cpu}-${host_os})])
+        ;;
      arm64-linux)
         valt_load_address_sec_norml="0xUNSET"
         valt_load_address_sec_inner="0xUNSET"
@@ -1034,7 +1071,8 @@ AM_CONDITIONAL(VGCONF_ARCHS_INCLUDE_ARM,
                test x$VGCONF_PLATFORM_PRI_CAPS = xARM_LINUX \
                  -o x$VGCONF_PLATFORM_SEC_CAPS = xARM_LINUX )
 AM_CONDITIONAL(VGCONF_ARCHS_INCLUDE_ARM64, 
-               test x$VGCONF_PLATFORM_PRI_CAPS = xARM64_LINUX )
+               test x$VGCONF_PLATFORM_PRI_CAPS = xARM64_LINUX \
+               -o x$VGCONF_PLATFORM_PRI_CAPS = xARM64_FREEBSD )
 AM_CONDITIONAL(VGCONF_ARCHS_INCLUDE_S390X,
                test x$VGCONF_PLATFORM_PRI_CAPS = xS390X_LINUX )
 AM_CONDITIONAL(VGCONF_ARCHS_INCLUDE_MIPS32,
@@ -1079,6 +1117,8 @@ AM_CONDITIONAL(VGCONF_PLATFORMS_INCLUDE_X86_FREEBSD,
                  -o x$VGCONF_PLATFORM_SEC_CAPS = xX86_FREEBSD)
 AM_CONDITIONAL(VGCONF_PLATFORMS_INCLUDE_AMD64_FREEBSD, 
                test x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_FREEBSD)
+AM_CONDITIONAL(VGCONF_PLATFORMS_INCLUDE_ARM64_FREEBSD, 
+               test x$VGCONF_PLATFORM_PRI_CAPS = xARM64_FREEBSD)
 AM_CONDITIONAL(VGCONF_PLATFORMS_INCLUDE_X86_DARWIN,
                test x$VGCONF_PLATFORM_PRI_CAPS = xX86_DARWIN \
                  -o x$VGCONF_PLATFORM_SEC_CAPS = xX86_DARWIN)
@@ -1108,7 +1148,8 @@ AM_CONDITIONAL(VGCONF_OS_IS_LINUX,
                  -o x$VGCONF_PLATFORM_PRI_CAPS = xNANOMIPS_LINUX)
 AM_CONDITIONAL(VGCONF_OS_IS_FREEBSD,
                test x$VGCONF_PLATFORM_PRI_CAPS = xX86_FREEBSD \
-                 -o x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_FREEBSD)
+                 -o x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_FREEBSD \
+                 -o x$VGCONF_PLATFORM_PRI_CAPS = xARM64_FREEBSD)
 AM_CONDITIONAL(VGCONF_OS_IS_DARWIN,
                test x$VGCONF_PLATFORM_PRI_CAPS = xX86_DARWIN \
                  -o x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_DARWIN)
@@ -1118,6 +1159,7 @@ AM_CONDITIONAL(VGCONF_OS_IS_SOLARIS,
 AM_CONDITIONAL(VGCONF_OS_IS_DARWIN_OR_FREEBSD,
                test x$VGCONF_PLATFORM_PRI_CAPS = xX86_FREEBSD \
                  -o x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_FREEBSD \
+                 -o x$VGCONF_PLATFORM_PRI_CAPS = xARM64_FREEBSD \
                  -o x$VGCONF_PLATFORM_PRI_CAPS = xX86_DARWIN \
                  -o x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_DARWIN)
 
@@ -3739,6 +3781,31 @@ CFLAGS="$save_CFLAGS"
 AM_CONDITIONAL(BUILD_ARMV82_TESTS, test x$ac_have_armv82_feature = xyes)
 
 
+# Does the C compiler support the armv82-a+dotprod flag and assembler dotprod instructions
+# Note, this doesn't generate a C-level symbol.  It generates a
+# automake-level symbol (BUILD_ARMV82_DOTPROD_TESTS), used in test Makefile.am's
+AC_MSG_CHECKING([if gcc supports the armv82-a+dotprod feature flag and assembler supports dotprod instructions])
+
+save_CFLAGS="$CFLAGS"
+CFLAGS="$CFLAGS -march=armv8.2-a+dotprod -Werror"
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
+int main()
+{
+    __asm__ __volatile__("sdot v1.4s, v2.16b, v3.16b");
+    return 0;
+}
+]])], [
+ac_have_armv82_dotprod_feature=yes
+AC_MSG_RESULT([yes])
+], [
+ac_have_armv82_dotprod_feature=no
+AC_MSG_RESULT([no])
+])
+CFLAGS="$save_CFLAGS"
+
+AM_CONDITIONAL(BUILD_ARMV82_DOTPROD_TESTS, test x$ac_have_armv82_dotprod_feature = xyes)
+
+
 # XXX JRS 2010 Oct 13: what is this for?  For sure, we don't need this
 # when building the tool executables.  I think we should get rid of it.
 #
@@ -4896,6 +4963,7 @@ AC_CHECK_FUNCS([     \
         pwritev2     \
         rawmemchr    \
         readlinkat   \
+        reallocarray \
         semtimedop   \
         setcontext   \
         signalfd     \
@@ -4909,12 +4977,20 @@ AC_CHECK_FUNCS([     \
         syscall      \
         utimensat    \
         mempcpy      \
+        strlcat      \
+        strlcpy      \
         stpncpy      \
         strchrnul    \
         memrchr      \
         strndup      \
         close_range  \
-        wcsncpy
+        wcsncpy      \
+        free_aligned_sized \
+	sbrk         \
+        wcpncpy      \
+        wcsxfrm      \
+        sem_timedwait \
+        sem_clockwait_np
         ])
 
 # AC_CHECK_LIB adds any library found to the variable LIBS, and links these
@@ -4944,8 +5020,26 @@ AM_CONDITIONAL([HAVE_GETADDRINFO],
                [test x$ac_cv_func_getaddrinfo = xyes])
 AM_CONDITIONAL([HAVE_CLOSE_RANGE],
                [test x$ac_cv_func_close_range = xyes])
+AM_CONDITIONAL([HAVE_REALLOCARRAY],
+               [test x$ac_cv_func_reallocarray = xyes])
 AM_CONDITIONAL([HAVE_WCSNCPY],
                [test x$ac_cv_func_wcsncpy = xyes])
+AM_CONDITIONAL([HAVE_STRLCAT],
+               [test x$ac_cv_func_strlcat = xyes])
+AM_CONDITIONAL([HAVE_STRLCPY],
+               [test x$ac_cv_func_strlcpy = xyes])
+AM_CONDITIONAL([HAVE_FREE_ALIGNED_SIZED],
+               [test x$ac_cv_func_free_aligned_sized = xyes])
+AM_CONDITIONAL([HAVE_SBRK],
+               [test x$ac_cv_func_sbrk = xyes])
+AM_CONDITIONAL([HAVE_WCPNCPY],
+               [test x$ac_cv_func_wcpncpy = xyes])
+AM_CONDITIONAL([HAVE_WCSXFRM],
+               [test x$ac_cv_func_wcsxfrm = xyes])
+AM_CONDITIONAL([HAVE_SEM_TIMEDWAIT],
+               [test x$ac_cv_func_sem_timedwait = xyes])
+AM_CONDITIONAL([HAVE_SEM_CLOCKWAIT_NP],
+               [test x$ac_cv_func_sem_clockwait_np = xyes])
 
 if test x$VGCONF_PLATFORM_PRI_CAPS = xMIPS32_LINUX \
      -o x$VGCONF_PLATFORM_PRI_CAPS = xMIPS64_LINUX \
@@ -4978,6 +5072,7 @@ elif test x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_LINUX \
        -o x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_FREEBSD \
        -o x$VGCONF_PLATFORM_PRI_CAPS = xPPC64_LINUX \
        -o x$VGCONF_PLATFORM_PRI_CAPS = xARM64_LINUX \
+       -o x$VGCONF_PLATFORM_PRI_CAPS = xARM64_FREEBSD \
        -o x$VGCONF_PLATFORM_PRI_CAPS = xMIPS64_LINUX \
        -o x$VGCONF_PLATFORM_PRI_CAPS = xS390X_LINUX ; then
   mflag_primary=$FLAG_M64
@@ -5334,12 +5429,55 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([[
   return __NR_openat2
 ]])], [
   ac_have_openat2=yes
+  AC_MSG_RESULT([yes])
 ], [
   ac_have_openat2=no
+  AC_MSG_RESULT([no])
 ])
 
 AM_CONDITIONAL([HAVE_OPENAT2],
                [test x$ac_have_openat2 = xyes])
+
+# check for crypto
+
+safe_LIBS="$LIBS"
+LIBS="-lcrypto"
+AC_MSG_CHECKING([if platform has openssl crypto])
+
+AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+  #include <openssl/crypto.h>
+]], [[
+  CRYPTO_secure_malloc_init(1<<20, 8);
+]])], [
+  ac_have_openssl=yes
+  AC_MSG_RESULT([yes])
+], [
+  ac_have_openssl=no
+  AC_MSG_RESULT([no])
+])
+LIBS=$safe_LIBS
+
+AM_CONDITIONAL([HAVE_OPENSSL],
+               [test x$ac_have_openssl = xyes])
+
+AC_MSG_CHECKING([if platform has aio_readv])
+
+AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+  #include <aio.h>
+  #include <stdlib.h>
+]], [[
+  aio_readv(NULL);
+]])], [
+  ac_have_aio_readv=yes
+  AC_MSG_RESULT([yes])
+
+], [
+  ac_have_aio_readv=no
+  AC_MSG_RESULT([no])
+])
+
+AM_CONDITIONAL([HAVE_AIO_READV],
+               [test x$ac_have_aio_readv = xyes])
 
 # does g++ have built-in functions for atomic memory access ?
 AC_MSG_CHECKING([if g++ supports __sync_add_and_fetch])
@@ -5496,6 +5634,7 @@ AC_CONFIG_FILES([
    memcheck/tests/Makefile
    memcheck/tests/common/Makefile
    memcheck/tests/amd64/Makefile
+   memcheck/tests/arm64/Makefile
    memcheck/tests/x86/Makefile
    memcheck/tests/linux/Makefile
    memcheck/tests/linux/debuginfod-check.vgtest

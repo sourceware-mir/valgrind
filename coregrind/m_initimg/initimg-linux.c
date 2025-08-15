@@ -721,7 +721,8 @@ Addr setup_client_stack( void*  init_sp,
                auxv->u.a_val &= ((VKI_HWCAP_S390_TE - 1)
                                  | VKI_HWCAP_S390_VXRS
                                  | VKI_HWCAP_S390_VXRS_EXT
-                                 | VKI_HWCAP_S390_VXRS_EXT2);
+                                 | VKI_HWCAP_S390_VXRS_EXT2
+                                 | VKI_HWCAP_S390_NNPA);
             }
 #           elif defined(VGP_arm64_linux)
             {
@@ -734,7 +735,8 @@ Addr setup_client_stack( void*  init_sp,
                                | VKI_HWCAP_SHA2         \
                                | VKI_HWCAP_CRC32        \
                                | VKI_HWCAP_FP           \
-                               | VKI_HWCAP_ASIMD)
+                               | VKI_HWCAP_ASIMD        \
+                               | VKI_HWCAP_ASIMDDP)
                auxv->u.a_val &= ARM64_SUPPORTED_HWCAP;
             }
 #           endif

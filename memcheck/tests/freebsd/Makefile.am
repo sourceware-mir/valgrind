@@ -3,11 +3,15 @@ include $(top_srcdir)/Makefile.tool-tests.am
 
 dist_noinst_SCRIPTS = filter_stderr filter_pts dump_stdout filter_sigwait \
 	filter_scalar filter_realpathat filter_fstat filter_eventfd2 \
-	toucher1 toucher2
+	toucher1 toucher2 filter_getfsstat filter_context
 
 EXTRA_DIST = \
 	access.vgtest \
 	access.stderr.exp \
+	aio.vgtest aio.stderr.exp \
+	aiov.vgtest aiov.stderr.exp \
+	aio_read.vgtest aio_read.stderr.exp aio_read.stdout.exp \
+	aio_read.in \
 	aligned_alloc.vgtest aligned_alloc.stderr.exp \
 	aligned_alloc_xml.vgtest aligned_alloc_xml.stderr.exp \
 	aligned_allocs_supp.vgtest \
@@ -24,6 +28,7 @@ EXTRA_DIST = \
 	bug464476_rel_symlink.stdout.exp \
 	bug470713.vgtest bug470713.stderr.exp \
 		bug470713.stdout.exp \
+	bug483786.vgtest bug483786.stderr.exp \
 	capsicum.vgtest \
 	capsicum.stderr.exp \
 	chflags.vgtest\
@@ -31,7 +36,8 @@ EXTRA_DIST = \
 		chflags.stderr.exp-x86 \
 	chmod_chown.vgtest \
 	chmod_chown.stderr.exp \
-	close_range.vgtest close_range.stderr.exp \
+	clock_nanosleep_interrupt.vgtest \
+	clock_nanosleep_interrupt.stderr.exp \
 	delete_sized_mismatch.vgtest \
 	delete_sized_mismatch.stderr.exp \
 	delete_sized_mismatch_xml.vgtest \
@@ -44,13 +50,14 @@ EXTRA_DIST = \
 	eventfd2.stderr.exp \
 	extattr.vgtest \
 	extattr.stderr.exp \
+	fbsd278566.vgtest \
+	fbsd278566.stderr.exp \
 	fexecve.vgtest \
 	fexecve.stderr.exp \
 	file_locking_wait6.vgtest \
 	file_locking_wait6.stderr.exp \
 	get_set_context.vgtest \
 	get_set_context.stderr.exp \
-	get_set_context.stderr.exp-x86 \
 	get_set_login.vgtest \
 	get_set_login.stderr.exp \
 	getfh.vgtest \
@@ -72,6 +79,8 @@ EXTRA_DIST = \
 	memalign_supp.supp \
 	misc.vgtest \
 	misc.stderr.exp \
+	openpty.vgtest \
+	openpty.stderr.exp \
 	pdfork_pdkill.vgtest \
 	pdfork_pdkill.stderr.exp \
 	realpathat.vgtest \
@@ -80,6 +89,7 @@ EXTRA_DIST = \
 	revoke.stderr.exp \
 	scalar.h scalar.vgtest \
 	scalar.stderr.exp \
+		scalar.stderr.exp-arm64 \
 		scalar.stderr.exp-x86 \
 	scalar_abort2.vgtest \
 	scalar_13_plus.vgtest \
@@ -115,6 +125,8 @@ EXTRA_DIST = \
 	statfs.stderr.exp \
 	static_allocs.vgtest \
 	static_allocs.stderr.exp \
+	strlcat_strlcpy.vgtest \
+	strlcat_strlcpy.stderr.exp \
 	supponlyobj.vgtest \
 	supponlyobj.stderr.exp \
 	supponlyobj.supp \
@@ -130,14 +142,17 @@ EXTRA_DIST = \
 	utimes.stderr.exp
 
 check_PROGRAMS = \
-	access aligned_alloc bug464476 bug470713 capsicum \
-	chflags \
-	chmod_chown delete_sized_mismatch errno_aligned_allocs \
-	extattr \
+	access aio aio_read aligned_alloc bug464476 bug470713 \
+	bug483786 \
+	capsicum chflags \
+	chmod_chown clock_nanosleep_interrupt \
+	delete_sized_mismatch errno_aligned_allocs \
+	extattr fbsd278566 \
 	fexecve \
 	file_locking_wait6 \
 	get_set_context get_set_login getfh \
 	kqueue linkat memalign misc \
+	openpty \
 	pdfork_pdkill getfsstat inlinfo inlinfo_nested.so \
 	revoke scalar \
 	scalar_fork scalar_thr_exit scalar_abort2 scalar_pdfork \
@@ -148,12 +163,17 @@ check_PROGRAMS = \
 	stat \
 	statfs \
 	static_allocs \
+	strlcat_strlcpy \
 	timing_safe \
 	utimens \
 	utimes
 
 AM_CFLAGS   += $(AM_FLAG_M3264_PRI)
 AM_CXXFLAGS += $(AM_FLAG_M3264_PRI)
+
+if HAVE_AIO_READV
+check_PROGRAMS += aiov
+endif
 
 inlinfo_SOURCES = inlinfo.c
 inlinfo_DEPENDENCIES = inlinfo_nested.so
@@ -177,12 +197,6 @@ scalar_15_plus_CFLAGS = ${AM_CFLAGS} -g
 timerfd_LDFLAGS = -lm
 endif
 
-if HAVE_CLOSE_RANGE
-check_PROGRAMS += close_range
-endif
-
-scalar_CFLAGS = ${AM_CFLAGS} -g
-
 aligned_alloc_CFLAGS = ${AM_CFLAGS} @FLAG_W_NO_NON_POWER_OF_TWO_ALIGNMENT@
 
 delete_sized_mismatch_CXXFLAGS = ${AM_CXXFLAGS} --std=c++14
@@ -193,3 +207,7 @@ errno_aligned_allocs_CFLAGS = ${AM_CFLAGS} @FLAG_W_NO_NON_POWER_OF_TWO_ALIGNMENT
 extattr_CFLAGS = ${AM_CFLAGS} @FLAG_W_NO_UNUSED_BUT_SET_VARIABLE@
 
 memalign_CFLAGS = ${AM_CFLAGS} @FLAG_W_NO_NON_POWER_OF_TWO_ALIGNMENT@
+
+openpty_LDFLAGS = ${AM_LDFLAGS} -lutil
+
+scalar_CFLAGS = ${AM_CFLAGS} -g
