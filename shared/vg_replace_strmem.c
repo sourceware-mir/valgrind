@@ -105,6 +105,7 @@
    20450 WSTRNCMP
    20460 MEMMEM
    20470 WMEMCMP
+   20480 WCSNCPY
 */
 
 #if defined(VGO_solaris)
@@ -1127,8 +1128,15 @@ static inline void my_exit ( int x )
 #define MEMMOVE(soname, fnname)  \
    MEMMOVE_OR_MEMCPY(20181, soname, fnname, 0)
 
-#define MEMCPY(soname, fnname) \
+/* See https://bugs.kde.org/show_bug.cgi?id=402833
+   why we disable the overlap check on x86_64.  */
+#if defined(VGP_amd64_linux)
+ #define MEMCPY(soname, fnname) \
+   MEMMOVE_OR_MEMCPY(20180, soname, fnname, 0)
+#else
+ #define MEMCPY(soname, fnname) \
    MEMMOVE_OR_MEMCPY(20180, soname, fnname, 1)
+#endif
 
 #if defined(VGO_linux)
  /* For older memcpy we have to use memmove-like semantics and skip
@@ -1224,6 +1232,8 @@ static inline void my_exit ( int x )
 #elif defined(VGO_freebsd)
  MEMCMP(VG_Z_LIBC_SONAME,  memcmp)
  MEMCMP(VG_Z_LIBC_SONAME,  bcmp)
+ MEMCMP(VG_Z_LIBC_SONAME,  timingsafe_memcmp)
+ MEMCMP(VG_Z_LIBC_SONAME,  timingsafe_bcmp)
 
 #elif defined(VGO_darwin)
 # if DARWIN_VERS >= DARWIN_10_9
@@ -1701,6 +1711,14 @@ static inline void my_exit ( int x )
 
 /*-------------------- memcpy_chk --------------------*/
 
+/* See https://bugs.kde.org/show_bug.cgi?id=402833
+   why we disable the overlap check on x86_64.  */
+#if defined(VGP_amd64_linux)
+ #define CHECK_OVERLAP 0
+#else
+ #define CHECK_OVERLAP 1
+#endif
+
 #define GLIBC26___MEMCPY_CHK(soname, fnname) \
    void* VG_REPLACE_FUNCTION_EZU(20300,soname,fnname) \
             (void* dst, const void* src, SizeT len, SizeT dstlen ); \
@@ -1714,7 +1732,7 @@ static inline void my_exit ( int x )
       RECORD_COPY(len); \
       if (len == 0) \
          return dst; \
-      if (is_overlap(dst, src, len, len)) \
+      if (CHECK_OVERLAP && is_overlap(dst, src, len, len)) \
          RECORD_OVERLAP_ERROR("memcpy_chk", dst, src, len); \
       if ( dst > src ) { \
          d = (HChar *)dst + len - 1; \
@@ -2264,6 +2282,7 @@ static inline void my_exit ( int x )
  WMEMCHR(VG_Z_LIBC_SONAME, wmemchr)
 #endif
 
+/*---------------------- wmemcmp ----------------------*/
 
 #define WMEMCMP(soname, fnname) \
    int VG_REPLACE_FUNCTION_EZU(20470,soname,fnname)       \
@@ -2278,10 +2297,52 @@ static inline void my_exit ( int x )
       return 0; \
    }
 
-#if defined(VGO_linux)
+#if defined(VGO_linux) || defined(VGO_freebsd)
  WMEMCMP(VG_Z_LIBC_SONAME, wmemcmp)
 #endif
 
+/*---------------------- wcsncpy ----------------------*/
+
+ // This is a wchar_t equivalent to strncpy.  We don't
+ // have wchar_t available here, but in the GNU C Library
+ // wchar_t is always 32 bits wide.
+
+#define WCSNCPY(soname, fnname) \
+ Int* VG_REPLACE_FUNCTION_EZU(20480,soname,fnname) \
+    ( Int* dst, const Int* src, SizeT n ); \
+    Int* VG_REPLACE_FUNCTION_EZU(20480,soname,fnname) \
+    ( Int* dst, const Int* src, SizeT n ) \
+ { \
+      const Int* src_orig = src; \
+      Int* dst_orig = dst; \
+      SizeT m = 0; \
+      \
+       while (m < n && *src) { \
+         m++; \
+         *dst++ = *src++; \
+      } \
+      \
+      /* This checks for overlap after copying, unavoidable without */ \
+      /* pre-counting length... should be ok */ \
+      /* +4 because sizeof(wchar_t) == 4 */ \
+      SizeT srclen = ((m < n) ? m+1 : n)*4; \
+      RECORD_COPY(srclen); \
+      if (is_overlap(dst_orig,  \
+                     src_orig,  \
+                     n*4, \
+                     srclen)) \
+      RECORD_OVERLAP_ERROR("wcsncpy", dst_orig, src_orig, 0); \
+      \
+ while (m++ < n) { \
+         *dst++ = 0; \
+      } \
+      \
+      return dst_orig; \
+ }
+
+#if defined(VGO_linux) || defined(VGO_freebsd)
+ WCSNCPY(VG_Z_LIBC_SONAME, wcsncpy)
+#endif
 
 /*------------------------------------------------------------*/
 /*--- Improve definedness checking of process environment  ---*/

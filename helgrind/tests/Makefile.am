@@ -33,6 +33,7 @@ EXTRA_DIST = \
 	bar_trivial.vgtest bar_trivial.stdout.exp bar_trivial.stderr.exp \
 	free_is_write.vgtest free_is_write.stdout.exp \
 		free_is_write.stderr.exp \
+	getaddrinfo.vgtest getaddrinfo.stderr.exp \
 	hg01_all_ok.vgtest hg01_all_ok.stdout.exp hg01_all_ok.stderr.exp \
 	hg02_deadlock.vgtest hg02_deadlock.stdout.exp hg02_deadlock.stderr.exp \
 	hg03_inherit.vgtest hg03_inherit.stdout.exp hg03_inherit.stderr.exp \
@@ -235,6 +236,10 @@ endif
 if HAVE_BUILTIN_ATOMIC
 check_PROGRAMS += annotate_rwlock
 annotate_rwlock_CFLAGS = $(AM_CFLAGS) @FLAG_W_NO_UNUSED_BUT_SET_VARIABLE@
+endif
+
+if HAVE_GETADDRINFO
+check_PROGRAMS += getaddrinfo
 endif
 
 AM_CFLAGS   += $(AM_FLAG_M3264_PRI)

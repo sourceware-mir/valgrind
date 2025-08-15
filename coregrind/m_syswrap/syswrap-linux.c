@@ -1984,8 +1984,10 @@ static void ppoll_pre_helper ( ThreadId tid, SyscallArgLayout* layout,
    for (i = 0; i < ARG2; i++) {
       PRE_MEM_READ( "ppoll(ufds.fd)",
                     (Addr)(&ufds[i].fd), sizeof(ufds[i].fd) );
-      PRE_MEM_READ( "ppoll(ufds.events)",
-                    (Addr)(&ufds[i].events), sizeof(ufds[i].events) );
+      if (ufds[i].fd >= 0) {
+         PRE_MEM_READ( "ppoll(ufds.events)",
+                       (Addr)(&ufds[i].events), sizeof(ufds[i].events) );
+      }
       PRE_MEM_WRITE( "ppoll(ufds.revents)",
                      (Addr)(&ufds[i].revents), sizeof(ufds[i].revents) );
    }
@@ -2161,6 +2163,29 @@ PRE(sys_epoll_pwait)
       PRE_MEM_READ( "epoll_pwait(sigmask)", ARG5, sizeof(vki_sigset_t) );
 }
 POST(sys_epoll_pwait)
+{
+   epoll_post_helper (tid, arrghs, status);
+}
+
+PRE(sys_epoll_pwait2)
+{
+   *flags |= SfMayBlock;
+   PRINT("sys_epoll_pwait2 ( %ld, %#" FMT_REGWORD "x, %ld, %#"
+          FMT_REGWORD "x, %#" FMT_REGWORD "x, %" FMT_REGWORD "u )",
+         SARG1, ARG2, SARG3, ARG4, ARG5, ARG6);
+   PRE_REG_READ6(long, "epoll_pwait2",
+                 int, epfd, struct vki_epoll_event *, events,
+                 int, maxevents, const struct timespec64 *, timeout,
+                 vki_sigset_t *, sigmask, vki_size_t, sigsetsize);
+   /* Assume all (maxevents) events records should be (fully) writable. */
+   PRE_MEM_WRITE( "epoll_pwait2(events)", ARG2, sizeof(struct vki_epoll_event)*ARG3);
+   /* epoll_pwait2 only supports 64bit timespec. */
+   if (ARG4)
+      pre_read_timespec64(tid, "epoll_pwait2(timeout)", ARG4);
+   if (ARG5)
+      PRE_MEM_READ( "epoll_pwait2(sigmask)", ARG5, sizeof(vki_sigset_t) );
+}
+POST(sys_epoll_pwait2)
 {
    epoll_post_helper (tid, arrghs, status);
 }
@@ -3283,12 +3308,12 @@ PRE(sys_timerfd_gettime)
 {
    PRINT("sys_timerfd_gettime ( %ld, %#" FMT_REGWORD "x )", SARG1, ARG2);
    PRE_REG_READ2(long, "timerfd_gettime",
-                 int, ufd,
-                 struct vki_itimerspec*, otmr);
+                 int, fd,
+                 struct vki_itimerspec*, curr_value);
    if (!ML_(fd_allowed)(ARG1, "timerfd_gettime", tid, False))
       SET_STATUS_Failure(VKI_EBADF);
    else
-      PRE_MEM_WRITE("timerfd_gettime(result)",
+      PRE_MEM_WRITE("timerfd_gettime(curr_value)",
                     ARG2, sizeof(struct vki_itimerspec));
 }
 POST(sys_timerfd_gettime)
@@ -3320,19 +3345,19 @@ PRE(sys_timerfd_settime)
    PRINT("sys_timerfd_settime ( %ld, %ld, %#" FMT_REGWORD "x, %#"
          FMT_REGWORD "x )", SARG1, SARG2, ARG3, ARG4);
    PRE_REG_READ4(long, "timerfd_settime",
-                 int, ufd,
+                 int, fd,
                  int, flags,
-                 const struct vki_itimerspec*, utmr,
-                 struct vki_itimerspec*, otmr);
+                 const struct vki_itimerspec*, new_value,
+                 struct vki_itimerspec*, old_value);
    if (!ML_(fd_allowed)(ARG1, "timerfd_settime", tid, False))
       SET_STATUS_Failure(VKI_EBADF);
    else
    {
-      PRE_MEM_READ("timerfd_settime(result)",
+      PRE_MEM_READ("timerfd_settime(new_value)",
                    ARG3, sizeof(struct vki_itimerspec));
       if (ARG4)
       {
-         PRE_MEM_WRITE("timerfd_settime(result)",
+         PRE_MEM_WRITE("timerfd_settime(old_value)",
                        ARG4, sizeof(struct vki_itimerspec));
       }
    }

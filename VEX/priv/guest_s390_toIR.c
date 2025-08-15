@@ -12849,11 +12849,28 @@ s390_irgen_TDGXT(UChar r1, IRTemp op2addr)
 static const HChar *
 s390_irgen_CLC(UChar length, IRTemp start1, IRTemp start2)
 {
-   IRTemp len = newTemp(Ity_I64);
+   IRType ty;
 
-   assign(len, mkU64(length));
-   s390_irgen_CLC_EX(len, start1, start2);
+   switch (length) {
+   case 0: ty = Ity_I8; break;
+   case 1: ty = Ity_I16; break;
+   case 3: ty = Ity_I32; break;
+   case 7: ty = Ity_I64; break;
+   default: ty = Ity_INVALID;
+   }
+   if (ty != Ity_INVALID) {
+      IRTemp a = newTemp(ty);
+      IRTemp b = newTemp(ty);
 
+      assign(a, load(ty, mkexpr(start1)));
+      assign(b, load(ty, mkexpr(start2)));
+      s390_cc_thunk_putZZ(S390_CC_OP_UNSIGNED_COMPARE, a, b);
+   } else {
+      IRTemp len = newTemp(Ity_I64);
+
+      assign(len, mkU64(length));
+      s390_irgen_CLC_EX(len, start1, start2);
+   }
    return "clc";
 }
 
@@ -13598,36 +13615,36 @@ s390_irgen_XC(UChar length, IRTemp start1, IRTemp start2)
 static void
 s390_irgen_XC_sameloc(UChar length, UChar b, UShort d)
 {
-   IRTemp counter = newTemp(Ity_I32);
    IRTemp start = newTemp(Ity_I64);
-   IRTemp addr  = newTemp(Ity_I64);
-
    assign(start,
           binop(Iop_Add64, mkU64(d), b != 0 ? get_gpr_dw0(b) : mkU64(0)));
 
-   if (length < 8) {
-      UInt i;
-
-      for (i = 0; i <= length; ++i) {
+   if (length < 7) {
+      for (UInt i = 0; i <= length; ++i) {
          store(binop(Iop_Add64, mkexpr(start), mkU64(i)), mkU8(0));
       }
    } else {
-     assign(counter, get_counter_w0());
+      if (length < 32) {
+         for (UInt i = 0; i <= length - 7; i += 8) {
+            store(binop(Iop_Add64, mkexpr(start), mkU64(i)), mkU64(0));
+         }
+      } else {
+         IRTemp counter = newTemp(Ity_I64);
+         assign(counter, get_counter_dw0());
+         store(binop(Iop_Add64, mkexpr(start), mkexpr(counter)), mkU64(0));
+         put_counter_dw0(binop(Iop_Add64, mkexpr(counter), mkU64(8)));
+         iterate_if(binop(Iop_CmpLE64U, mkexpr(counter), mkU64(length - 15)));
 
-     assign(addr, binop(Iop_Add64, mkexpr(start),
-                        unop(Iop_32Uto64, mkexpr(counter))));
-
-     store(mkexpr(addr), mkU8(0));
-
-     /* Check for end of field */
-     put_counter_w0(binop(Iop_Add32, mkexpr(counter), mkU32(1)));
-     iterate_if(binop(Iop_CmpNE32, mkexpr(counter), mkU32(length)));
-
-     /* Reset counter */
-     put_counter_dw0(mkU64(0));
+         /* Reset counter */
+         put_counter_dw0(mkU64(0));
+      }
+      /* Clear the remaining bytes with backward overlap */
+      if ((length + 1) % 8 != 0) {
+         store(binop(Iop_Add64, mkexpr(start), mkU64(length - 7)), mkU64(0));
+      }
    }
 
-   s390_cc_thunk_put1(S390_CC_OP_BITWISE, mktemp(Ity_I32, mkU32(0)), False);
+   s390_cc_set_val(0);
 
    if (UNLIKELY(vex_traceflags & VEX_TRACE_FE))
       s390_disasm(ENC3(MNM, UDLB, UDXB), "xc", d, length, b, d, 0, b);
@@ -16371,50 +16388,37 @@ s390_irgen_VGBM(UChar v1, UShort i2, UChar m3 __attribute__((unused)))
 static const HChar *
 s390_irgen_VGM(UChar v1, UShort i2, UChar m3)
 {
-   UChar from = (i2 & 0xff00) >> 8;
-   UChar to   = (i2 & 0x00ff);
-   ULong value = 0UL;
-   IRType type = s390_vr_get_type(m3);
-   vassert(from <= to);
+   s390_insn_assert("vgm", m3 <= 3);
 
-   UChar maxIndex = 0;
-   switch (type) {
-   case Ity_I8:
-      maxIndex = 7;
-      break;
-   case Ity_I16:
-      maxIndex = 15;
-      break;
-   case Ity_I32:
-      maxIndex = 31;
-      break;
-   case Ity_I64:
-      maxIndex = 63;
-      break;
-   default:
-      vpanic("s390_irgen_VGM: unknown type");
-   }
+   UChar  max_idx = (8 << m3) - 1;
+   UChar  from    = max_idx & (i2 >> 8);
+   UChar  to      = max_idx & i2;
+   ULong  all_one = (1ULL << max_idx << 1) - 1;
+   ULong  value   = (all_one >> from) ^ (all_one >> to >> 1);
 
-   for(UChar index = from; index <= to; index++) {
-      value |= (1ULL << (maxIndex - index));
-   }
+   /* In case of wrap-around we now have a value that needs inverting:
+          to         from
+          V           V
+      00000111111111110000000000000000 */
+   if (to < from)
+      value ^= all_one;
 
-   IRExpr *fillValue;
-   switch (type) {
-   case Ity_I8:
+   IRExpr* fillValue;
+   switch (m3) {
+   case 0:
       fillValue = mkU8(value);
       break;
-   case Ity_I16:
+   case 1:
       fillValue = mkU16(value);
       break;
-   case Ity_I32:
+   case 2:
       fillValue = mkU32(value);
       break;
-   case Ity_I64:
+   case 3:
       fillValue = mkU64(value);
       break;
    default:
-      vpanic("s390_irgen_VGM: unknown type");
+      vpanic("s390_irgen_VGM: unknown element size");
    }
 
    s390_vr_fill(v1, fillValue);

@@ -506,6 +506,8 @@ void filter_IPs (Addr* ips, Int n_ips,
 {
    Int i;
    Bool top_has_fnname = False;
+   Bool is_alloc_fn = False;
+   Bool is_inline_fn = False;
    const HChar *fnname;
 
    *top = 0;
@@ -519,9 +521,21 @@ void filter_IPs (Addr* ips, Int n_ips,
    //    0x1 0x2 0x3 alloc func1 main
    //  became   0x1 0x2 0x3 func1 main
    const DiEpoch ep = VG_(current_DiEpoch)();
-   for (i = *top; i < n_ips; i++) {
-      top_has_fnname = VG_(get_fnname)(ep, ips[*top], &fnname);
-      if (top_has_fnname &&  VG_(strIsMemberXA)(alloc_fns, fnname)) {
+   InlIPCursor *iipc = NULL;
+
+   for (i = *top; i < n_ips; ++i) {
+      iipc = VG_(new_IIPC)(ep, ips[i]);
+      do {
+         top_has_fnname = VG_(get_fnname_inl)(ep, ips[i], &fnname, iipc);
+         is_alloc_fn = top_has_fnname && VG_(strIsMemberXA)(alloc_fns, fnname);
+         is_inline_fn = VG_(next_IIPC)(iipc);
+         if (is_alloc_fn && is_inline_fn) {
+            VERB(4, "filtering inline alloc fn %s\n", fnname);
+         }
+      } while (is_alloc_fn && is_inline_fn);
+      VG_(delete_IIPC)(iipc);
+
+      if (is_alloc_fn) {
          VERB(4, "filtering alloc fn %s\n", fnname);
          (*top)++;
          (*n_ips_sel)--;
@@ -534,8 +548,15 @@ void filter_IPs (Addr* ips, Int n_ips,
    if (*n_ips_sel > 0 && VG_(sizeXA)(ignore_fns) > 0) {
       if (!top_has_fnname) {
          // top has no fnname => search for the first entry that has a fnname
-         for (i = *top; i < n_ips && !top_has_fnname; i++) {
-            top_has_fnname = VG_(get_fnname)(ep, ips[i], &fnname);
+         for (i = *top; i < n_ips && !top_has_fnname; ++i) {
+            iipc = VG_(new_IIPC)(ep, ips[i]);
+            do {
+               top_has_fnname = VG_(get_fnname_inl)(ep, ips[i], &fnname, iipc);
+               if (top_has_fnname) {
+                  break;
+               }
+            } while (VG_(next_IIPC)(iipc));
+            VG_(delete_IIPC)(iipc);
          }
       }
       if (top_has_fnname && VG_(strIsMemberXA)(ignore_fns, fnname)) {
@@ -1407,7 +1428,7 @@ static void* ms___builtin_new ( ThreadId tid, SizeT szB )
    return alloc_and_record_block( tid, szB, VG_(clo_alignment), /*is_zeroed*/False );
 }
 
-static void* ms___builtin_new_aligned ( ThreadId tid, SizeT szB, SizeT alignB )
+static void* ms___builtin_new_aligned ( ThreadId tid, SizeT szB, SizeT alignB , SizeT orig_alignB )
 {
    return alloc_and_record_block( tid, szB, alignB, /*is_zeroed*/False );
 }
@@ -1417,7 +1438,7 @@ static void* ms___builtin_vec_new ( ThreadId tid, SizeT szB )
    return alloc_and_record_block( tid, szB, VG_(clo_alignment), /*is_zeroed*/False );
 }
 
-static void* ms___builtin_vec_new_aligned ( ThreadId tid, SizeT szB, SizeT alignB )
+static void* ms___builtin_vec_new_aligned ( ThreadId tid, SizeT szB, SizeT alignB, SizeT orig_alignB )
 {
    return alloc_and_record_block( tid, szB, alignB, /*is_zeroed*/False );
 }
@@ -1427,7 +1448,7 @@ static void* ms_calloc ( ThreadId tid, SizeT m, SizeT szB )
    return alloc_and_record_block( tid, m*szB, VG_(clo_alignment), /*is_zeroed*/True );
 }
 
-static void *ms_memalign ( ThreadId tid, SizeT alignB, SizeT szB )
+static void *ms_memalign ( ThreadId tid, SizeT alignB, SizeT orig_alignB, SizeT szB)
 {
    return alloc_and_record_block( tid, szB, alignB, False );
 }

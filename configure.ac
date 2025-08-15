@@ -15,10 +15,10 @@
 # Also set the (expected/last) release date here.
 # Do not forget to rerun ./autogen.sh
 m4_define([v_major_ver], [3])
-m4_define([v_minor_ver], [21])
+m4_define([v_minor_ver], [22])
 m4_define([v_micro_ver], [0])
 m4_define([v_suffix_ver], [])
-m4_define([v_rel_date], ["28 Apr 2023"])
+m4_define([v_rel_date], ["31 Oct 2023"])
 m4_define([v_version],
 	  m4_if(v_suffix_ver, [],
 		[v_major_ver.v_minor_ver.v_micro_ver],
@@ -398,6 +398,8 @@ case "${host_os}" in
         freebsd_13_2=1320
         AC_DEFINE([FREEBSD_14], 1400, [FREEBSD_VERS value for FreeBSD 14.x])
         freebsd_14=1400
+        AC_DEFINE([FREEBSD_15], 1500, [FREEBSD_VERS value for FreeBSD 15.x])
+        freebsd_15=1500
 
         AC_MSG_CHECKING([for the kernel version])
         kernel=`uname -r`
@@ -444,6 +446,10 @@ case "${host_os}" in
               AC_DEFINE([FREEBSD_VERS], FREEBSD_13_2, [FreeBSD version])
               freebsd_vers=$freebsd_13_2
               ;;
+           *)
+              AC_MSG_RESULT([unsupported (${kernel})])
+              AC_MSG_ERROR([Valgrind works on FreeBSD 10.x to 15.x])
+              ;;
            esac
            ;;
         14.*)
@@ -451,9 +457,14 @@ case "${host_os}" in
            AC_DEFINE([FREEBSD_VERS], FREEBSD_14, [FreeBSD version])
            freebsd_vers=$freebsd_14
            ;;
+        15.*)
+           AC_MSG_RESULT([FreeBSD 15.x (${kernel})])
+           AC_DEFINE([FREEBSD_VERS], FREEBSD_15, [FreeBSD version])
+           freebsd_vers=$freebsd_15
+           ;;
         *)
            AC_MSG_RESULT([unsupported (${kernel})])
-           AC_MSG_ERROR([Valgrind works on FreeBSD 10.x to 14.x])
+           AC_MSG_ERROR([Valgrind works on FreeBSD 10.x to 15.x])
            ;;
         esac
 
@@ -1197,6 +1208,23 @@ AC_ARG_WITH(xcodedir,
 AC_MSG_RESULT([$xcodedir])
 AC_DEFINE_UNQUOTED(XCODE_DIR, "$xcodedir", [xcode sdk include directory])
 AC_SUBST(XCODE_DIR, [$xcodedir])])
+
+#----------------------------------------------------------------------------
+# Where to install gdb scripts, defaults to VG_LIBDIR (pkglibexecdir)
+#----------------------------------------------------------------------------
+AC_MSG_CHECKING([where gdb scripts are installed])
+AC_ARG_WITH(gdbscripts-dir,
+   [  --with-gdbscripts-dir=PATH  Specify path to install gdb scripts],
+   [gdbscriptsdir=${withval}],
+   [gdbscriptsdir=${libexecdir}/valgrind])
+AC_MSG_RESULT([$gdbscriptsdir])
+if test "x$gdbscriptsdir" != "xno"; then
+  AC_SUBST(VG_GDBSCRIPTS_DIR, [$gdbscriptsdir])
+  AM_CONDITIONAL(GDBSCRIPTS, true)
+else
+  AC_SUBST(VG_GDBSCRIPTS_DIR, [])
+  AM_CONDITIONAL(GDBSCRIPTS, false)
+fi
 
 #----------------------------------------------------------------------------
 # Libc and suppressions
@@ -2564,6 +2592,7 @@ AC_GCC_WARNING_SUBST_NO([static-local-in-inline], [FLAG_W_NO_STATIC_LOCAL_IN_INL
 AC_GCC_WARNING_SUBST_NO([mismatched-new-delete], [FLAG_W_NO_MISMATCHED_NEW_DELETE])
 AC_GCC_WARNING_SUBST_NO([infinite-recursion], [FLAG_W_NO_INFINITE_RECURSION])
 AC_GCC_WARNING_SUBST_NO([expansion-to-defined], [FLAG_W_NO_EXPANSION_TO_DEFINED])
+AC_GCC_WARNING_SUBST_NO([unused-variable], [FLAG_W_NO_UNUSED_VARIABLE])
 AC_GCC_WARNING_SUBST_NO([unused-but-set-variable], [FLAG_W_NO_UNUSED_BUT_SET_VARIABLE])
 AC_GCC_WARNING_SUBST_NO([non-power-of-two-alignment], [FLAG_W_NO_NON_POWER_OF_TWO_ALIGNMENT])
 AC_GCC_WARNING_SUBST_NO([sign-compare], [FLAG_W_NO_SIGN_COMPARE])
@@ -2577,6 +2606,7 @@ AC_GCC_WARNING_SUBST_NO([fortify-source], [FLAG_W_NO_FORTIFY_SOURCE])
 AC_GCC_WARNING_SUBST_NO([builtin-memcpy-chk-size], [FLAG_W_NO_BUILTIN_MEMCPY_CHK_SIZE])
 AC_GCC_WARNING_SUBST_NO([incompatible-pointer-types-discards-qualifiers], [FLAG_W_NO_INCOMPATIBLE_POINTER_TYPES_DISCARDS_QUALIFIERS])
 AC_GCC_WARNING_SUBST_NO([suspicious-bzero], [FLAG_W_NO_SUSPICIOUS_BZERO])
+AC_GCC_WARNING_SUBST_NO([attributes], [FLAG_W_NO_ATTRIBUTES])
 
 AC_GCC_WARNING_SUBST_NO_VAL([alloc-size-larger-than], [1677216], [FLAG_W_NO_ALLOC_SIZE_LARGER_THAN])
 
@@ -3078,6 +3108,26 @@ AC_MSG_NOTICE([ld --image-base or -Ttext-segment used, no need to strip build-id
 AC_SUBST([FLAG_NO_BUILD_ID], [""])
 fi
 CFLAGS=$safe_CFLAGS
+
+# On s390x, if the linker supports -Wl,--s390-pgste, then we build the
+# tools with that flag.  This enables running programs that need it, such
+# as qemu-kvm.
+if test x$VGCONF_PLATFORM_PRI_CAPS = xS390X_LINUX; then
+AC_MSG_CHECKING([if the linker accepts -Wl,--s390-pgste])
+safe_CFLAGS=$CFLAGS
+CFLAGS="-Wl,--s390-pgste"
+
+AC_LINK_IFELSE(
+[AC_LANG_PROGRAM([ ], [return 0;])],
+[
+  AC_SUBST([FLAG_S390_PGSTE], ["-Wl,--s390-pgste"])
+  AC_MSG_RESULT([yes])
+], [
+  AC_SUBST([FLAG_S390_PGSTE], [""])
+  AC_MSG_RESULT([no])
+])
+CFLAGS=$safe_CFLAGS
+fi
 
 # does the ppc assembler support "mtocrf" et al?
 AC_MSG_CHECKING([if ppc32/64 as supports mtocrf/mfocrf])
@@ -4496,6 +4546,16 @@ AC_PATH_PROG(DIS_PATH, dis, false)
 if test "x$DIS_PATH" = "xfalse"; then
   AC_MSG_FAILURE([Object code disassembler (`dis') not found.])
 fi
+# The illumos source is (or was) here
+# https://github.com/illumos/illumos-gate/blob/master/usr/src/lib/libscf/common/lowlevel.c#L1148
+# specifically the line
+#
+# request.rdr_version = REPOSITORY_DOOR_VERSION;
+#
+# rdr_version is a 32bit unsigned int
+# The macro REPOSITORY_DOOR_VERSION contains the ascii letters "Rep" in the top 3
+# bytes and the door version in the lowest byte. Hence we look for Rep which is 526570
+# in hex and then extrace the following byte.
 AC_CHECK_LIB(scf, scf_handle_bind, [], [
   AC_MSG_WARN([Function `scf_handle_bind' was not found in `libscf'.])
   AC_MSG_ERROR([Cannot determine version of the repository cache protocol.])
@@ -4511,7 +4571,7 @@ if ! $DIS_PATH -F scf_handle_bind $libscf  | grep -q -E '0x(4d01)?526570'; then
   AC_MSG_WARN([Function `scf_handle_bind' does not contain repository cache protocol version.])
   AC_MSG_ERROR([Cannot determine version of the repository cache protocol.])
 fi
-hex=$( $DIS_PATH -F scf_handle_bind $libscf  | perl -pe '($_) = /0x(?:4d01)?526570(\d{2}),/' )
+hex=$( $DIS_PATH -F scf_handle_bind $libscf  | grep 526570 | sed 's/.*526570//;s/,.*//' )
 if test -z "$hex"; then
   AC_MSG_WARN([Version of the repository cache protocol is empty?!])
   AC_MSG_ERROR([Cannot determine version of the repository cache protocol.])
@@ -4718,17 +4778,19 @@ fi # test "$VGCONF_OS" = "solaris"
 #----------------------------------------------------------------------------
 
 # Rather than having a large number of feature test as above with Solaris
-# these tests are per-version. This may not be entirely relialable for
+# these tests are per-version. This may not be entirely reliable for
 # FreeBSD development branches (XX.Y-CURRENT) or pre-release branches
 # (XX.Y-STABLE) but it should work for XX-Y-RELEASE
 
 if test "$VGCONF_OS" = "freebsd" ; then
 
 AM_CONDITIONAL(FREEBSD_VERS_13_PLUS, test $freebsd_vers -ge $freebsd_13_0)
+AM_CONDITIONAL(FREEBSD_VERS_15_PLUS, test $freebsd_vers -ge $freebsd_15)
 
 else
 
 AM_CONDITIONAL(FREEBSD_VERS_13_PLUS, false)
+AM_CONDITIONAL(FREEBSD_VERS_15_PLUS, false)
 
 fi # test "$VGCONF_OS" = "freebsd"
 
@@ -4808,6 +4870,7 @@ AC_CHECK_FUNCS([     \
         copy_file_range \
         epoll_create \
         epoll_pwait  \
+        getaddrinfo  \
         klogctl      \
         mallinfo     \
         memchr       \
@@ -4850,6 +4913,8 @@ AC_CHECK_FUNCS([     \
         strchrnul    \
         memrchr      \
         strndup      \
+        close_range  \
+        wcsncpy
         ])
 
 # AC_CHECK_LIB adds any library found to the variable LIBS, and links these
@@ -4875,6 +4940,12 @@ AM_CONDITIONAL([HAVE_SETCONTEXT], [test x$ac_cv_func_setcontext = xyes])
 AM_CONDITIONAL([HAVE_SWAPCONTEXT], [test x$ac_cv_func_swapcontext = xyes])
 AM_CONDITIONAL([HAVE_MEMFD_CREATE],
                [test x$ac_cv_func_memfd_create = xyes])
+AM_CONDITIONAL([HAVE_GETADDRINFO],
+               [test x$ac_cv_func_getaddrinfo = xyes])
+AM_CONDITIONAL([HAVE_CLOSE_RANGE],
+               [test x$ac_cv_func_close_range = xyes])
+AM_CONDITIONAL([HAVE_WCSNCPY],
+               [test x$ac_cv_func_wcsncpy = xyes])
 
 if test x$VGCONF_PLATFORM_PRI_CAPS = xMIPS32_LINUX \
      -o x$VGCONF_PLATFORM_PRI_CAPS = xMIPS64_LINUX \
@@ -5357,6 +5428,42 @@ CXXFLAGS=$safe_CXXFLAGS
 
 AM_CONDITIONAL([HAVE_SHARED_POINTER_ANNOTATION],
                [test x$ac_have_shared_pointer_annotation = xyes])
+
+# checking for GNU libc C17 aligned_alloc
+# just check glibc version rather than trying to muck around
+# checking the runtime behaviour or seeing if it is a weak alias
+AC_MSG_CHECKING([for AT_GNU_LIBC_C17_ALIGNED_ALLOC])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <features.h>
+]], [[
+#if !defined(__GLIBC__) || __GLIBC__ != 2 || !defined(__GLIBC_MINOR__) || __GLIBC_MINOR__ < 38
+#error "not GNU libc 2.38 or later"
+#endif
+]])], [
+    AC_MSG_RESULT([yes])
+    AC_DEFINE([HAVE_GNU_LIBC_C17_ALIGNED_ALLOC], 1,
+              [Define to 1 if you have GNU libc C17 aligned_alloc.])
+
+], [
+    AC_MSG_RESULT([no])
+])
+
+# Check for C11 thrd_create()
+AC_MSG_CHECKING([for thrd_create()])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([
+#include <threads.h>
+int thrd_entry(void *arg) { return 0; }
+], [[thrd_t thr; return thrd_create(&thr, thrd_entry, NULL);]])],
+[
+ac_cxx_have_thrd_create=yes
+AC_MSG_RESULT([yes])
+], [
+ac_cxx_have_thrd_create=no
+AC_MSG_RESULT([no])
+])
+
+AM_CONDITIONAL(HAVE_THRD_CREATE, test x$ac_cxx_have_thrd_create = xyes)
+
 
 
 #----------------------------------------------------------------------------
