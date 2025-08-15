@@ -1,3 +1,24 @@
+Release 3.25.1 (20 May 2025)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This point release contains only bug fixes.
+
+* ==================== FIXED BUGS ====================
+
+The following bugs have been fixed or resolved in this point release.
+
+503098  Incorrect NAN-boxing for float registers in RISC-V
+503641  close_range syscalls started failing with 3.25.0
+503914  mount syscall param filesystemtype may be NULL
+504177  FILE DESCRIPTORS banner shows when closing some inherited fds
+504265  FreeBSD: missing syscall wrappers for fchroot and setcred
+504466  Double close causes SEGV
+
+To see details of a given bug, visit
+  https://bugs.kde.org/show_bug.cgi?id=XXXXXX
+where XXXXXX is the bug number as listed above.
+
+
 Release 3.25.0 (25 Apr 2025)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

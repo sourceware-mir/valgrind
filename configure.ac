@@ -17,9 +17,9 @@ AC_PREREQ(2.69)
 # Do not forget to rerun ./autogen.sh
 m4_define([v_major_ver], [3])
 m4_define([v_minor_ver], [25])
-m4_define([v_micro_ver], [0])
+m4_define([v_micro_ver], [1])
 m4_define([v_suffix_ver], [])
-m4_define([v_rel_date], ["25 Apr 2025"])
+m4_define([v_rel_date], ["20 May 2025"])
 m4_define([v_version],
 	  m4_if(v_suffix_ver, [],
 		[v_major_ver.v_minor_ver.v_micro_ver],
@@ -5006,7 +5006,9 @@ AC_CHECK_FUNCS([     \
         fdatasync    \
         getrandom    \
         getrlimitusage \
-        timer_delete
+        timer_delete \
+        fchroot      \
+        setcred
         ])
 
 # AC_CHECK_LIB adds any library found to the variable LIBS, and links these
@@ -5064,6 +5066,10 @@ AM_CONDITIONAL([HAVE_GETRLIMITUSAGE],
                [test x$ac_cv_func_getrlimitusage = xyes])
 AM_CONDITIONAL([HAVE_TIMER_DELETE],
                [test x$ac_cv_func_timer_delete = xyes])
+AM_CONDITIONAL([HAVE_FCHROOT],
+               [test x$ac_cv_func_fchroot = xyes])
+AM_CONDITIONAL([HAVE_SETCRED],
+               [test x$ac_cv_func_setcred = xyes])
 
 if test x$VGCONF_PLATFORM_PRI_CAPS = xMIPS32_LINUX \
      -o x$VGCONF_PLATFORM_PRI_CAPS = xMIPS64_LINUX \
