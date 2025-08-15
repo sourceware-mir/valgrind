@@ -859,12 +859,20 @@ static void sync_check_mapping_callback ( Addr addr, SizeT len, UInt prot,
       if (nsegments[i].hasW) seg_prot |= VKI_PROT_WRITE;
       if (nsegments[i].hasX) seg_prot |= VKI_PROT_EXEC;
 
-#if defined(VGO_darwin) || defined(VGO_freebsd)
+#if defined(VGO_darwin)
       // GrP fixme kernel info doesn't have dev/inode
       cmp_devino = False;
 
       // GrP fixme V and kernel don't agree on offsets
       cmp_offsets = False;
+#elif defined(VGO_freebsd)
+      cmp_offsets
+         = nsegments[i].kind == SkFileC || nsegments[i].kind == SkFileV;
+      cmp_offsets &= ignore_offset;
+
+      cmp_devino
+         = nsegments[i].dev != 0 || nsegments[i].ino != 0;
+      cmp_devino &= ignore_offset;
 #else
       cmp_offsets
          = nsegments[i].kind == SkFileC || nsegments[i].kind == SkFileV;
@@ -883,6 +891,19 @@ static void sync_check_mapping_callback ( Addr addr, SizeT len, UInt prot,
       /* hack apparently needed on MontaVista Linux */
       if (filename && VG_(strstr)(filename, "/.lib-ro/"))
          cmp_devino = False;
+
+      /* On linux systems we want to avoid dev/inode check on btrfs,
+         we can use the statfs call for that, except on nanomips
+         (which also doesn't have a sys_fstatfs syswrap).
+         See https://bugs.kde.org/show_bug.cgi?id=317127 */
+#if !defined(VGP_nanomips_linux)
+      struct vki_statfs statfs = {0};
+      SysRes res = VG_(do_syscall2)(__NR_statfs, (UWord)filename,
+                                    (UWord)&statfs);
+      if (!sr_isError(res) && statfs.f_type == VKI_BTRFS_SUPER_MAGIC) {
+         cmp_devino = False;
+      }
+#endif
 #endif
       
       /* If we are doing sloppy execute permission checks then we

@@ -92,7 +92,8 @@ dist_noinst_SCRIPTS = \
 noinst_SCRIPTS = \
 	filter_dw4 \
 	filter_overlaperror \
-	filter_stderr
+	filter_stderr \
+	filter_supp
 
 noinst_HEADERS = leak.h
 
@@ -121,6 +122,7 @@ EXTRA_DIST = \
 	bug155125.stderr.exp bug155125.vgtest \
 	bug287260.stderr.exp bug287260.vgtest \
 	bug340392.stderr.exp bug340392.vgtest \
+	bug445235_ada_demangle.stderr.exp bug445235_ada_demangle.vgtest \
 	bug401284.stderr.exp bug401284.stdout.exp bug401284.vgtest \
 	bug464969_d_demangle.stderr.exp bug464969_d_demangle.vgtest \
 		bug464969_d_demangle.stdout.exp \
@@ -432,6 +434,7 @@ EXTRA_DIST = \
 	varinfo5.vgtest varinfo5.stdout.exp varinfo5.stderr.exp \
 		varinfo5.stderr.exp-ppc64 \
 		varinfo5.stderr.exp-freebsd \
+		varinfo5.stderr.exp-freebsd2 \
 	varinfo6.vgtest varinfo6.stdout.exp varinfo6.stderr.exp \
 		varinfo6.stderr.exp-ppc64 \
 	varinforestrict.vgtest varinforestrict.stderr.exp \
@@ -473,6 +476,7 @@ check_PROGRAMS = \
 	bug287260 \
 	bug340392 \
 	bug401284 \
+ 	bug445235_ada_demangle \
 	bug464969_d_demangle \
 	bug472219 \
 	calloc-overflow \
@@ -728,6 +732,9 @@ memalign_args_CFLAGS	= $(AM_CFLAGS) -std=gnu11
 memalign2_CFLAGS	= $(AM_CFLAGS) @FLAG_W_NO_NON_POWER_OF_TWO_ALIGNMENT@
 if VGCONF_OS_IS_SOLARIS
 memalign2_CFLAGS	+= -D__EXTENSIONS__
+posix_memalign_CFLAGS	= ${AM_CFLAGS} -D__EXTENSIONS__
+else
+posix_memalign_CFLAGS	= ${AM_CFLAGS}
 endif
 
 memcmptest_CFLAGS	= $(AM_CFLAGS) -fno-builtin-memcmp

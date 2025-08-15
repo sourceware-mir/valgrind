@@ -576,7 +576,7 @@ static SyscallTableEntry syscall_table[] = {
    GENX_(__NR_link,              sys_link),           // 86 
    GENX_(__NR_unlink,            sys_unlink),         // 87 
    GENX_(__NR_symlink,           sys_symlink),        // 88 
-   GENX_(__NR_readlink,          sys_readlink),       // 89 
+   GENXY(__NR_readlink,          sys_readlink),       // 89 
 
    GENX_(__NR_chmod,             sys_chmod),          // 90 
    GENX_(__NR_fchmod,            sys_fchmod),         // 91 
@@ -773,7 +773,7 @@ static SyscallTableEntry syscall_table[] = {
    LINXY(__NR_keyctl,            sys_keyctl),         // 250
    LINX_(__NR_ioprio_set,        sys_ioprio_set),     // 251
    LINX_(__NR_ioprio_get,        sys_ioprio_get),     // 252
-   LINX_(__NR_inotify_init,	 sys_inotify_init),   // 253
+   LINXY(__NR_inotify_init,	 sys_inotify_init),   // 253
    LINX_(__NR_inotify_add_watch, sys_inotify_add_watch), // 254
 
    LINX_(__NR_inotify_rm_watch,	 sys_inotify_rm_watch), // 255
@@ -790,7 +790,7 @@ static SyscallTableEntry syscall_table[] = {
 
    LINX_(__NR_linkat,		 sys_linkat),           // 265
    LINX_(__NR_symlinkat,	 sys_symlinkat),        // 266
-   LINX_(__NR_readlinkat,	 sys_readlinkat),       // 267
+   LINXY(__NR_readlinkat,	 sys_readlinkat),       // 267
    LINX_(__NR_fchmodat,		 sys_fchmodat),         // 268
    LINX_(__NR_faccessat,	 sys_faccessat),        // 269
 

@@ -513,7 +513,7 @@ static SyscallTableEntry syscall_table[] = {
    GENX_(__NR_symlink,  sys_symlink),                                 // 83
    GENX_(84, sys_ni_syscall), /* unimplemented (by the kernel) */     // 84
 
-   GENX_(__NR_readlink,  sys_readlink),                               // 85
+   GENXY(__NR_readlink,  sys_readlink),                               // 85
 // ?????(__NR_uselib, ),                                              // 86
 // ?????(__NR_swapon, ),                                              // 87
 // ?????(__NR_reboot, ),                                              // 88
@@ -751,7 +751,7 @@ static SyscallTableEntry syscall_table[] = {
    LINXY(__NR_waitid, sys_waitid),                                    // 281
    LINX_(__NR_ioprio_set,  sys_ioprio_set),                           // 282
    LINX_(__NR_ioprio_get,  sys_ioprio_get),                           // 283
-   LINX_(__NR_inotify_init,  sys_inotify_init),                       // 284
+   LINXY(__NR_inotify_init,  sys_inotify_init),                       // 284
 
    LINX_(__NR_inotify_add_watch,  sys_inotify_add_watch),             // 285
    LINX_(__NR_inotify_rm_watch,  sys_inotify_rm_watch),               // 286
@@ -768,7 +768,7 @@ static SyscallTableEntry syscall_table[] = {
    LINX_(__NR_renameat,  sys_renameat),                               // 295
    LINX_(__NR_linkat,  sys_linkat),                                   // 296
    LINX_(__NR_symlinkat,  sys_symlinkat),                             // 297
-   LINX_(__NR_readlinkat,  sys_readlinkat),                           // 298
+   LINXY(__NR_readlinkat,  sys_readlinkat),                           // 298
    LINX_(__NR_fchmodat,  sys_fchmodat),                               // 299
 
    LINX_(__NR_faccessat,  sys_faccessat),                             // 300

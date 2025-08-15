@@ -13,6 +13,8 @@ EXTRA_DIST = \
 		bt_everything.vgtest \
 	bug132146.vgtest bug132146.stderr.exp bug132146.stdout.exp \
 	bug279698.vgtest bug279698.stderr.exp bug279698.stdout.exp \
+	bug492210_1.vgtest bug492210_1.stderr.exp \
+	bug492210_2.vgtest bug492210_2.stderr.exp \
 	fxsave-amd64.vgtest fxsave-amd64.stdout.exp fxsave-amd64.stderr.exp \
 	insn-bsfl.vgtest insn-bsfl.stdout.exp insn-bsfl.stderr.exp \
 	insn-pcmpistri.vgtest insn-pcmpistri.stdout.exp insn-pcmpistri.stderr.exp \
@@ -71,6 +73,7 @@ endif
 # but the problem is macOS, not clang
 if !VGCONF_OS_IS_DARWIN
  check_PROGRAMS += \
+	bug492210 \
 	shr_edx
 endif
 
@@ -78,6 +81,7 @@ AM_CFLAGS    += @FLAG_M64@
 AM_CXXFLAGS  += @FLAG_M64@
 AM_CCASFLAGS += @FLAG_M64@
 
+bug492210_CFLAGS	= ${AM_CFLAGS} @FLAG_NO_PIE@ @FLAG_W_NO_UNINITIALIZED@
 fxsave_amd64_CFLAGS	= $(AM_CFLAGS) @FLAG_NO_PIE@
 insn_pcmpistri_CFLAGS	= $(AM_CFLAGS)
 more_x87_fp_CFLAGS	= $(AM_CFLAGS) -O -ffast-math -mfpmath=387 \

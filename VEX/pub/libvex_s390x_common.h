@@ -52,10 +52,7 @@
 /* Dispatcher will save 8 FPRs at offsets 160 + 0 ... 160 + 56 */
 
 /* Where the dispatcher saves the r2 contents. */
-#define S390_OFFSET_SAVED_R2 160+80
-
-/* Where client's FPC register is saved. */
-#define S390_OFFSET_SAVED_FPC_C 160+72
+#define S390_OFFSET_SAVED_R2 160+72
 
 /* Where valgrind's FPC register is saved. */
 #define S390_OFFSET_SAVED_FPC_V 160+64
@@ -64,11 +61,11 @@
    Need size for
        8 FPRs
      + 1 GPR  (SAVED_R2)
-     + 2 FPCs (SAVED_FPC_C and SAVED_FPC_V).
+     + 1 FPC  (SAVED_FPC_V)
 
    Additionally, we need a standard frame for helper functions being called
    from client code. (See figure 1-16 in zSeries ABI) */
-#define S390_INNERLOOP_FRAME_SIZE ((8+1+2)*8 + 160)
+#define S390_INNERLOOP_FRAME_SIZE ((8+1+1)*8 + 160)
 
 
 /*--------------------------------------------------------------*/
@@ -118,6 +115,19 @@
 
 #define S390_EXT_PRNO    1
 #define S390_EXT_NNPA    2
+#define S390_EXT_DFLT    3
+#define S390_EXT_STFLE   4
+#define S390_EXT_KM      5
+#define S390_EXT_KMC     6
+#define S390_EXT_KIMD    7
+#define S390_EXT_KLMD    8
+#define S390_EXT_KMAC    9
+#define S390_EXT_PCC    10
+#define S390_EXT_KMCTR  11
+#define S390_EXT_KMO    12
+#define S390_EXT_KMF    13
+#define S390_EXT_KMA    14
+#define S390_EXT_KDSA   15
 
 /*--------------------------------------------------------------*/
 /*--- Miscellaneous                                          ---*/

@@ -145,7 +145,7 @@ static HChar** setup_client_env ( HChar** origenv, const HChar* toolname)
       paths.  We might not need the space for vgpreload_<tool>.so, but it
       doesn't hurt to over-allocate briefly.  The 16s are just cautious
       slop. */
-   Int preload_core_path_len = vglib_len + sizeof(preload_core)
+   Int preload_core_path_len = vglib_len + VG_(strlen)(preload_core)
                                + sizeof(VG_PLATFORM) + 16;
    Int preload_tool_path_len = vglib_len + VG_(strlen)(toolname)
                                + sizeof(VG_PLATFORM) + 16;
@@ -495,15 +495,13 @@ static Addr setup_client_stack(const void*  init_sp,
          stringsize += sizeof(struct vki_vdso_timehands);
          break;
 #endif
-#if (FREEBSD_VERS >= FREEBSD_13_0)
+      // from FreeBSD 13
       case VKI_AT_PS_STRINGS:
          stringsize += sizeof(struct vki_ps_strings);
          break;
-#endif
-#if (FREEBSD_VERS >= FREEBSD_13_1)
+      // from FreeBSD 13.1
       // case AT_FXRNG:
       // case AT_KPRELOAD:
-#endif
       default:
          break;
       }
@@ -711,14 +709,34 @@ static Addr setup_client_stack(const void*  init_sp,
       case VKI_AT_OSRELDATE:
       case VKI_AT_PAGESIZESLEN:
       case VKI_AT_CANARYLEN:
-
-#if (FREEBSD_VERS >= FREEBSD_11)
-      // FreeBSD 11+ also have HWCAP and HWCAP2
       case VKI_AT_EHDRFLAGS:
-#endif
          /* All these are pointerless, so we don't need to do
             anything about them. */
          break;
+#if defined(VGP_arm64_freebsd)
+      // FreeBSD 11+ also have HWCAP and HWCAP2
+      // but they aren't used on amd64
+      case VKI_AT_HWCAP:
+#define ARM64_SUPPORTED_HWCAP (VKI_HWCAP_ATOMICS        \
+                               | VKI_HWCAP_AES          \
+                               | VKI_HWCAP_PMULL        \
+                               | VKI_HWCAP_SHA1         \
+                               | VKI_HWCAP_SHA2         \
+                               | VKI_HWCAP_SHA512       \
+                               | VKI_HWCAP_CRC32        \
+                               | VKI_HWCAP_ASIMDRDM     \
+                               | VKI_HWCAP_FP           \
+                               | VKI_HWCAP_ASIMD        \
+                               | VKI_HWCAP_ASIMDDP)
+               auxv->u.a_val &= ARM64_SUPPORTED_HWCAP;
+         break;
+#undef ARM64_SUPPORTED_HWCAP
+      // not yet
+      /*
+      case VKI_AT_HWCAP2:
+         break;
+      */
+#endif
 
       case VKI_AT_EXECPATH:
          auxv->u.a_ptr = copy_str(&strtab, resolved_name);
@@ -747,7 +765,7 @@ static Addr setup_client_stack(const void*  init_sp,
          break;
 #endif
 
-#if (FREEBSD_VERS >= FREEBSD_13_0)
+      // From FreeBSD 13.0
       /* @todo PJF BSDFLAGS causes serveral testcases to crash.
          Not sure why, it seems to be used for sigfastblock */
       // case AT_BSDFLAGS:
@@ -765,18 +783,16 @@ static Addr setup_client_stack(const void*  init_sp,
       case VKI_AT_ENVV:
          auxv->u.a_val = (Word)VG_(client_envp);
          break;
-#endif
 
-#if (FREEBSD_VERS >= FREEBSD_13_1)
+      // from FreeBSD 13.1
       // I think that this is a pointer to a "fenestrasX" structture
       // lots of stuff that I don't understand
       // arc4random, passing through VDSO page ...
       // case AT_FXRNG:
       // Again a pointer, to the VDSO base for use by rtld
       // case AT_KPRELOAD:
-#endif
 
-#if (FREEBSD_VERS >= FREEBSD_13_2)
+      // from FreeBSD 13.2
       case VKI_AT_USRSTACKBASE:
          VG_(debugLog)(2, "initimg",
                        "usrstackbase from OS %lx\n",
@@ -798,7 +814,6 @@ static Addr setup_client_stack(const void*  init_sp,
                        clstack_max_size);
 
          break;
-#endif
 
       case VKI_AT_PHDR:
          if (info->phdr == 0) {

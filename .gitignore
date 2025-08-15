@@ -848,6 +848,7 @@
 /memcheck/tests/*.stdout.out
 /memcheck/tests/filter_dw4
 /memcheck/tests/filter_overlaperror
+/memcheck/tests/filter_supp
 /memcheck/tests/.deps
 /memcheck/tests/accounting
 /memcheck/tests/addressable
@@ -868,6 +869,7 @@
 /memcheck/tests/bug287260
 /memcheck/tests/bug340392
 /memcheck/tests/bug401284
+/memcheck/tests/bug445235_ada_demangle
 /memcheck/tests/bug464969_d_demangle
 /memcheck/tests/bug472219
 /memcheck/tests/bug484002
@@ -1069,6 +1071,7 @@
 /memcheck/tests/amd64/bt_everything
 /memcheck/tests/amd64/bug132146
 /memcheck/tests/amd64/bug279698
+/memcheck/tests/amd64/bug492210
 /memcheck/tests/amd64/defcfaexpr
 /memcheck/tests/amd64/fxsave-amd64
 /memcheck/tests/amd64/int3-amd64
@@ -1330,6 +1333,7 @@
 /memcheck/tests/x86/Makefile.in
 /memcheck/tests/x86/bug133694
 /memcheck/tests/x86/bug152022
+/memcheck/tests/x86/bug487993
 /memcheck/tests/x86/espindola2
 /memcheck/tests/x86/fpeflags
 /memcheck/tests/x86/fprem
@@ -1429,8 +1433,6 @@
 /memcheck/tests/freebsd/realpathat
 /memcheck/tests/freebsd/revoke
 /memcheck/tests/freebsd/scalar
-/memcheck/tests/freebsd/scalar_13_plus
-/memcheck/tests/freebsd/scalar_15_plus
 /memcheck/tests/freebsd/scalar_abort2
 /memcheck/tests/freebsd/scalar_fork
 /memcheck/tests/freebsd/scalar_pdfork
@@ -1529,6 +1531,7 @@
 /none/tests/blockfault
 /none/tests/bug129866
 /none/tests/bug234814
+/none/tests/bug491394
 /none/tests/closeall
 /none/tests/coolo_sigaction
 /none/tests/coolo_strlen
@@ -1538,6 +1541,7 @@
 /none/tests/execve
 /none/tests/faultstatus
 /none/tests/fcntl_setown
+/none/tests/fdbaduse
 /none/tests/fdleak_cmsg
 /none/tests/fdleak_creat
 /none/tests/fdleak_dup
@@ -1641,6 +1645,7 @@
 /none/tests/threadederrno
 /none/tests/timestamp
 /none/tests/tls
+/none/tests/track-fds-exec-children
 /none/tests/unit_debuglog
 /none/tests/valgrind_cpp_test
 /none/tests/vgcore.*
@@ -1660,6 +1665,7 @@
 /none/tests/amd64/amd64locked
 /none/tests/amd64/asorep
 /none/tests/amd64/avx-1
+/none/tests/amd64/avx-vmovq
 /none/tests/amd64/avx2-1
 /none/tests/amd64/avx_estimate_insn
 /none/tests/amd64/bmi
@@ -1670,6 +1676,7 @@
 /none/tests/amd64/bug137714-amd64
 /none/tests/amd64/bug156404-amd64
 /none/tests/amd64/bug485148
+/none/tests/amd64/bug487439
 /none/tests/amd64/cet_nops
 /none/tests/amd64/clc
 /none/tests/amd64/cmpxchg
@@ -1805,8 +1812,11 @@
 /none/tests/arm64/allexec
 /none/tests/arm64/atomics_v81
 /none/tests/arm64/bug484426
+/none/tests/arm64/bug489338
 /none/tests/arm64/crc32
 /none/tests/arm64/cvtf_imm
+/none/tests/arm64/dc_cvax
+/none/tests/arm64/fcvta_s_u
 /none/tests/arm64/fmadd_sub
 /none/tests/arm64/fp_and_simd
 /none/tests/arm64/fp_and_simd_v82
@@ -1816,6 +1826,7 @@
 /none/tests/arm64/memory_test
 /none/tests/arm64/simd_dotprod
 /none/tests/arm64/simd_v81
+/none/tests/arm64/sha512_v82
 
 # /none/tests/darwin/
 /none/tests/darwin/*.dSYM
@@ -2223,7 +2234,7 @@
 /none/tests/solaris/reserve_sysstat_zone_addr
 /none/tests/solaris/resolv
 /none/tests/solaris/sigresend
-/none/tests/solaris/stack-overflow
+/none/tests/solaris/stack_overflow
 /none/tests/solaris/stack_prot
 /none/tests/solaris/threads_exitall
 
@@ -2241,9 +2252,10 @@
 /none/tests/freebsd/fexecve
 /none/tests/freebsd/hello_world
 /none/tests/freebsd/452275
+/none/tests/freebsd/proc_pid_file
 /none/tests/freebsd/sanity_level_thread
 /none/tests/freebsd/usrstack
-/none/tests/freebsd/proc_pid_file
+/none/tests/freebsd/umtx_shm_creat
 
 # /none/tests/x86/
 /none/tests/x86/*.dSYM
@@ -2311,6 +2323,7 @@
 /none/tests/x86/sigcontext
 /none/tests/x86/smc1
 /none/tests/x86/ssse3_misaligned
+/none/tests/x86/sse4-x86
 /none/tests/x86/x86locked
 /none/tests/x86/x87trigOOR
 /none/tests/x86/xadd
@@ -2435,3 +2448,8 @@
 
 # /VEX/switchback/
 /VEX/switchback/switchback
+
+*.vgtest*.trs
+*.vgtest*.log
+/test-suite-overall.log
+test-suite.log
