@@ -67,6 +67,7 @@ EXTRA_DIST = \
 	getfsstat.stderr.exp \
 	getfsstat.supp \
 		getfsstat.stderr.exp-x86 \
+	getrlimitusage.vgtest getrlimitusage.stderr.exp \
 	kqueue.vgtest \
 	kqueue.stderr.exp \
 	kqueue.stdout.exp \
@@ -136,7 +137,10 @@ EXTRA_DIST = \
 	utimens.stderr.exp \
 	utimes.vgtest \
 	utimes.stderr.exp-x86 \
-	utimes.stderr.exp
+	utimes.stderr.exp \
+	utrace.vgtest \
+	utrace.stderr.exp
+
 
 check_PROGRAMS = \
 	access aio aio_read aligned_alloc bug464476 bug470713 \
@@ -170,6 +174,10 @@ AM_CXXFLAGS += $(AM_FLAG_M3264_PRI)
 
 if HAVE_AIO_READV
 check_PROGRAMS += aiov
+endif
+
+if HAVE_GETRLIMITUSAGE
+check_PROGRAMS += getrlimitusage
 endif
 
 inlinfo_SOURCES = inlinfo.c
