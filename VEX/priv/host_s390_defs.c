@@ -1118,8 +1118,10 @@ s390_insn_map_regs(HRegRemap *m, s390_insn *insn)
       break;
 
    case S390_INSN_COND_MOVE:
-      insn->variant.cond_move.dst = lookupHRegRemap(m, insn->variant.cond_move.dst);
-      s390_opnd_RMI_map_regs(m, &insn->variant.cond_move.src);
+      if (insn->variant.cond_move.cond != S390_CC_NEVER) {
+         insn->variant.cond_move.dst = lookupHRegRemap(m, insn->variant.cond_move.dst);
+         s390_opnd_RMI_map_regs(m, &insn->variant.cond_move.src);
+      }
       break;
 
    case S390_INSN_LOAD_IMMEDIATE:
@@ -5813,7 +5815,6 @@ static UChar*
 s390_emit_VCEQ(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4)
 {
    if (UNLIKELY(vex_traceflags & VEX_TRACE_ASM))
-      /* fixs390: m5 = 0  --> condition code not set */
       S390_DISASM(XMNM("vceq", vch_like_disasm), VR(v1), VR(v2), VR(v3), MASK(m4), MASK(0));
 
    return emit_VRR_VVVM(p, 0xE700000000f8ULL, v1, v2, v3, m4);
@@ -5844,7 +5845,6 @@ static UChar *
 s390_emit_VPKS(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4)
 {
    if (UNLIKELY(vex_traceflags & VEX_TRACE_ASM))
-      /* fixs390: m5 = 0  --> condition code not set */
       S390_DISASM(XMNM("vpks", vch_like_disasm), VR(v1), VR(v2), VR(v3), MASK(m4), MASK(0));
 
    return emit_VRR_VVVM(p, 0xE70000000097ULL, v1, v2, v3, m4);
@@ -5855,7 +5855,6 @@ static UChar *
 s390_emit_VPKLS(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4)
 {
    if (UNLIKELY(vex_traceflags & VEX_TRACE_ASM))
-      /* fixs390: m5 = 0  --> condition code not set */
       S390_DISASM(XMNM("vpkls", vch_like_disasm), VR(v1), VR(v2), VR(v3), MASK(m4), MASK(0));
 
    return emit_VRR_VVVM(p, 0xE70000000095ULL, v1, v2, v3, m4);
@@ -5952,7 +5951,6 @@ static UChar *
 s390_emit_VCH(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4)
 {
    if (UNLIKELY(vex_traceflags & VEX_TRACE_ASM))
-      /* fixs390: m5 = 0  --> condition code not set */
       S390_DISASM(XMNM("vch", vch_like_disasm), VR(v1), VR(v2), VR(v3), MASK(m4), MASK(0));
 
    return emit_VRR_VVVM(p, 0xE700000000fbULL, v1, v2, v3, m4);
@@ -5962,7 +5960,6 @@ static UChar *
 s390_emit_VCHL(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4)
 {
    if (UNLIKELY(vex_traceflags & VEX_TRACE_ASM))
-      /* fixs390: m5 = 0  --> condition code not set */
       S390_DISASM(XMNM("vchl", vch_like_disasm), VR(v1), VR(v2), VR(v3), MASK(m4), MASK(0));
 
    return emit_VRR_VVVM(p, 0xE700000000f9ULL, v1, v2, v3, m4);
@@ -9261,7 +9258,10 @@ s390_widen_emit(UChar *buf, const s390_insn *insn, UInt from_size,
 
       case 2:
          if (insn->size == 4) {  /* 16 --> 32 */
-            return s390_emit_LHI(buf, r1, value);
+            if (sign_extend)
+               return s390_emit_LHI(buf, r1, value);
+            else
+               return s390_emit_IILF(buf, r1, value);
          }
          if (insn->size == 8) {  /* 16 --> 64 */
             if (sign_extend)

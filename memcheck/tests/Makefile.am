@@ -82,6 +82,7 @@ dist_noinst_SCRIPTS = \
 	filter_leak_cpp_interior \
 	filter_libc_variants \
 	filter_xml \
+	filter_xml_leak \
 	filter_strchr \
 	filter_varinfo3 \
 	filter_memcheck \
@@ -257,9 +258,10 @@ EXTRA_DIST = \
 	leak-segv-jmp.vgtest leak-segv-jmp.stderr.exp \
 	lks.vgtest lks.stdout.exp lks.supp lks.stderr.exp \
 	long_namespace_xml.vgtest long_namespace_xml.stdout.exp \
-	long_namespace_xml.stderr.exp \
+	long_namespace_xml.stderr.exp long_namespace_xml.stderr.exp-freebsd \
 	long-supps.vgtest long-supps.stderr.exp long-supps.supp \
 	mallinfo.stderr.exp mallinfo.vgtest \
+	mallinfo2.stderr.exp mallinfo2.vgtest \
 	malloc_free_fill.vgtest \
 	malloc_free_fill.stderr.exp \
 	malloc_usable.stderr.exp malloc_usable.vgtest \
@@ -354,6 +356,10 @@ EXTRA_DIST = \
 	realloc_size_zero.stderr.exp realloc_size_zero.stdout.exp-glibc \
 		realloc_size_zero.stdout.exp-other \
 		realloc_size_zero.vgtest \
+	realloc_size_zero_xml.stderr.exp \
+		realloc_size_zero_xml.stdout.exp \
+		realloc_size_zero_xml.stdout.exp-glibc \
+		realloc_size_zero_xml.vgtest \
 	realloc_size_zero_yes.stderr.exp realloc_size_zero_yes.stdout.exp \
 		realloc_size_zero_yes.vgtest \
 	realloc_size_zero_again_yes.stderr.exp \
@@ -516,6 +522,7 @@ check_PROGRAMS = \
 	leak-segv-jmp \
 	long-supps \
 	mallinfo \
+	mallinfo2 \
 	malloc_free_fill \
 	malloc_usable malloc1 malloc2 malloc3 manuel1 manuel2 manuel3 \
 	match-overrun \
@@ -672,9 +679,12 @@ leak_cpp_interior_SOURCES	= leak_cpp_interior.cpp
 # we are actually testing for at runtime.
 accounting_CFLAGS	= $(AM_CFLAGS) @FLAG_W_NO_ALLOC_SIZE_LARGER_THAN@
 badfree_CFLAGS		= $(AM_CFLAGS) @FLAG_W_NO_FREE_NONHEAP_OBJECT@
-bug155125_CFLAGS	= $(AM_CFLAGS) -Wno-unused-result @FLAG_W_NO_ALLOC_SIZE_LARGER_THAN@
+bug155125_CFLAGS	= $(AM_CFLAGS) @FLAG_W_NO_UNUSED_RESULT@ @FLAG_W_NO_ALLOC_SIZE_LARGER_THAN@
 bug472219_CFLAGS	= $(AM_CFLAGS) @FLAG_W_NO_UNINITIALIZED@
+calloc_overflow_CFLAGS	= ${AM_CFLAGS} @FLAG_W_NO_ALLOC_SIZE_LARGER_THAN@
+malloc_usable_CFLAGS	= ${AM_CFLAGS} @FLAG_W_NO_MAYBE_UNINITIALIZED@ @FLAG_W_NO_UNINITIALIZED@
 mallinfo_CFLAGS		= $(AM_CFLAGS) -Wno-deprecated-declarations
+mallinfo2_CFLAGS	= $(AM_CFLAGS) -Wno-deprecated-declarations
 malloc3_CFLAGS		= $(AM_CFLAGS) @FLAG_W_NO_ALLOC_SIZE_LARGER_THAN@
 sbfragment_CFLAGS	= $(AM_CFLAGS) -Wno-deprecated-declarations
 strchr_CFLAGS		= $(AM_CFLAGS) @FLAG_W_NO_UNINITIALIZED@

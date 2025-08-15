@@ -16,10 +16,10 @@ AC_PREREQ(2.69)
 # Also set the (expected/last) release date here.
 # Do not forget to rerun ./autogen.sh
 m4_define([v_major_ver], [3])
-m4_define([v_minor_ver], [25])
-m4_define([v_micro_ver], [1])
-m4_define([v_suffix_ver], [])
-m4_define([v_rel_date], ["20 May 2025"])
+m4_define([v_minor_ver], [26])
+m4_define([v_micro_ver], [0])
+m4_define([v_suffix_ver], [GIT])
+m4_define([v_rel_date], ["?? Oct 2025"])
 m4_define([v_version],
 	  m4_if(v_suffix_ver, [],
 		[v_major_ver.v_minor_ver.v_micro_ver],
@@ -35,7 +35,7 @@ AC_SUBST(VG_DATE, v_rel_date)
 
 AC_CONFIG_SRCDIR(coregrind/m_main.c)
 AC_CONFIG_HEADERS([config.h])
-AM_INIT_AUTOMAKE([foreign dist-bzip2 subdir-objects])
+AM_INIT_AUTOMAKE([foreign dist-bzip2 tar-ustar subdir-objects])
 
 AM_MAINTAINER_MODE
 
@@ -4952,6 +4952,7 @@ AC_CHECK_FUNCS([     \
         getaddrinfo  \
         klogctl      \
         mallinfo     \
+        mallinfo2    \
         memchr       \
         memfd_create \
         memset       \
@@ -5008,7 +5009,8 @@ AC_CHECK_FUNCS([     \
         getrlimitusage \
         timer_delete \
         fchroot      \
-        setcred
+        setcred      \
+        exterrctl
         ])
 
 # AC_CHECK_LIB adds any library found to the variable LIBS, and links these
@@ -5070,6 +5072,8 @@ AM_CONDITIONAL([HAVE_FCHROOT],
                [test x$ac_cv_func_fchroot = xyes])
 AM_CONDITIONAL([HAVE_SETCRED],
                [test x$ac_cv_func_setcred = xyes])
+AM_CONDITIONAL([HAVE_EXTERRCTL],
+               [test x$ac_cv_func_exterrctl = xyes])
 
 if test x$VGCONF_PLATFORM_PRI_CAPS = xMIPS32_LINUX \
      -o x$VGCONF_PLATFORM_PRI_CAPS = xMIPS64_LINUX \
@@ -5698,7 +5702,7 @@ AC_CONFIG_FILES([
    include/Makefile 
    auxprogs/Makefile
    mpi/Makefile
-   coregrind/Makefile 
+   coregrind/Makefile
    memcheck/Makefile
    memcheck/tests/Makefile
    memcheck/tests/common/Makefile
@@ -5757,6 +5761,7 @@ AC_CONFIG_FILES([
    none/tests/arm64/Makefile
    none/tests/s390x/Makefile
    none/tests/s390x/disasm-test/Makefile
+   none/tests/iropt-test/Makefile
    none/tests/mips32/Makefile
    none/tests/mips64/Makefile
    none/tests/nanomips/Makefile
@@ -5790,6 +5795,8 @@ AC_CONFIG_FILES([coregrind/link_tool_exe_darwin],
                 [chmod +x coregrind/link_tool_exe_darwin])
 AC_CONFIG_FILES([coregrind/link_tool_exe_solaris],
                 [chmod +x coregrind/link_tool_exe_solaris])
+AC_CONFIG_FILES([coregrind/vgstack],
+                [chmod +x coregrind/vgstack])
 AC_CONFIG_FILES([tests/filter_stderr_basic],
                 [chmod +x tests/filter_stderr_basic])
 AC_CONFIG_FILES([tests/filter_discards],

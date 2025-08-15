@@ -1230,7 +1230,7 @@ static SyscallTableEntry syscall_table[] = {
 //zz 
    GENX_(__NR_umask,             sys_umask),          // 60
    GENX_(__NR_chroot,            sys_chroot),         // 61
-//zz    //   (__NR_ustat,             sys_ustat)           // 62 SVr4 -- deprecated
+   LINXY(__NR_ustat,             sys_ustat),          // 62 SVr4 -- deprecated
    GENXY(__NR_dup2,              sys_dup2),           // 63
    GENX_(__NR_getppid,           sys_getppid),        // 64
 
@@ -1320,7 +1320,7 @@ static SyscallTableEntry syscall_table[] = {
    GENX_(__NR_fchdir,            sys_fchdir),         // 133
 //zz    //   (__NR_bdflush,           sys_bdflush),        // 134 */Linux
 //zz 
-//zz    //   (__NR_sysfs,             sys_sysfs),          // 135 SVr4
+   LINXY(__NR_sysfs,             sys_sysfs),          // 135 SVr4
    LINX_(__NR_personality,       sys_personality),    // 136
    GENX_(__NR_afs_syscall,       sys_ni_syscall),     // 137
    LINX_(__NR_setfsuid,          sys_setfsuid16),     // 138
@@ -1674,7 +1674,11 @@ static SyscallTableEntry syscall_table[] = {
 
    LINXY(__NR_memfd_secret,      sys_memfd_secret),      // 447
 
+   LINXY(__NR_cachestat,         sys_cachestat),         // 451
    LINX_(__NR_fchmodat2,         sys_fchmodat2),         // 452
+   LINXY(__NR_statmount,         sys_statmount),         // 457
+   LINXY(__NR_listmount,         sys_listmount),         // 458
+   LINX_(__NR_mseal,             sys_mseal),             // 462
 };
 
 SyscallTableEntry* ML_(get_linux_syscall_entry) ( UInt sysno )

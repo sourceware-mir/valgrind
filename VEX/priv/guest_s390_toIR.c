@@ -507,16 +507,6 @@ call_function(IRExpr *callee_address)
    dis_res->jk_StopHere = Ijk_Call;
 }
 
-/* Function call with known target. */
-static void
-call_function_and_chase(Addr64 callee_address)
-{
-   put_IA(mkaddr_expr(callee_address));
-
-   dis_res->whatNext = Dis_StopHere;
-   dis_res->jk_StopHere = Ijk_Call;
-}
-
 /* Function return sequence */
 static void
 return_from_function(IRExpr *return_address)
@@ -573,18 +563,6 @@ static void
 always_goto(IRExpr *target)
 {
    put_IA(target);
-
-   dis_res->whatNext    = Dis_StopHere;
-   dis_res->jk_StopHere = Ijk_Boring;
-}
-
-
-/* An unconditional branch to a known target. */
-// QQQQ fixme this is now the same as always_goto
-static void
-always_goto_and_chase(Addr64 target)
-{
-   put_IA(mkaddr_expr(target));
 
    dis_res->whatNext    = Dis_StopHere;
    dis_res->jk_StopHere = Ijk_Boring;
@@ -2779,8 +2757,8 @@ s390_format_E(const HChar *(*irgen)(void))
 }
 
 static void
-s390_format_MII_UPP(const HChar *(*irgen)(UChar m1, UShort i2, UShort i3),
-                    UChar m1, UShort i2, UShort i3)
+s390_format_MII_UPP(const HChar *(*irgen)(UChar m1, UShort i2, UInt i3),
+                    UChar m1, UShort i2, UInt i3)
 {
    const HChar *mnm;
 
@@ -2788,7 +2766,7 @@ s390_format_MII_UPP(const HChar *(*irgen)(UChar m1, UShort i2, UShort i3),
 
    if (UNLIKELY(vex_traceflags & VEX_TRACE_FE))
       S390_DISASM(MNM(mnm), UINT(m1), PCREL((Int)((Short)(i2 << 4) >> 4)),
-                  PCREL((Int)(Short)i3));
+                  PCREL((Int)(i3 << 8) >> 8));
 }
 
 static void
@@ -5799,7 +5777,7 @@ static const HChar *
 s390_irgen_BRAS(UChar r1, UShort i2)
 {
    put_gpr_dw0(r1, mkU64(guest_IA_next_instr));
-   call_function_and_chase(addr_relative(i2));
+   call_function(mkaddr_expr(addr_relative(i2)));
 
    return "bras";
 }
@@ -5808,7 +5786,7 @@ static const HChar *
 s390_irgen_BRASL(UChar r1, UInt i2)
 {
    put_gpr_dw0(r1, mkU64(guest_IA_next_instr));
-   call_function_and_chase(addr_rel_long(i2));
+   call_function(mkaddr_expr(addr_rel_long(i2)));
 
    return "brasl";
 }
@@ -5821,7 +5799,7 @@ s390_irgen_BRC(UChar m1, UShort i2)
    if (m1 == 0) {
    } else {
       if (m1 == 15) {
-         always_goto_and_chase(addr_relative(i2));
+         always_goto(mkaddr_expr(addr_relative(i2)));
       } else {
          assign(cond, s390_call_calculate_cond(m1));
          if_condition_goto(binop(Iop_CmpNE32, mkexpr(cond), mkU32(0)),
@@ -5843,7 +5821,7 @@ s390_irgen_BRCL(UChar m1, UInt i2)
    if (m1 == 0) {
    } else {
       if (m1 == 15) {
-         always_goto_and_chase(addr_rel_long(i2));
+         always_goto(mkaddr_expr(addr_rel_long(i2)));
       } else {
          assign(cond, s390_call_calculate_cond(m1));
          if_condition_goto(binop(Iop_CmpNE32, mkexpr(cond), mkU32(0)),
@@ -6154,7 +6132,7 @@ s390_irgen_CRJ(UChar r1, UChar r2, UShort i4, UChar m3)
    if (m3 == 0) {
    } else {
       if (m3 == 14) {
-         always_goto_and_chase(addr_relative(i4));
+         always_goto(mkaddr_expr(addr_relative(i4)));
       } else {
          assign(op1, get_gpr_w1(r1));
          assign(op2, get_gpr_w1(r2));
@@ -6179,7 +6157,7 @@ s390_irgen_CGRJ(UChar r1, UChar r2, UShort i4, UChar m3)
    if (m3 == 0) {
    } else {
       if (m3 == 14) {
-         always_goto_and_chase(addr_relative(i4));
+         always_goto(mkaddr_expr(addr_relative(i4)));
       } else {
          assign(op1, get_gpr_dw0(r1));
          assign(op2, get_gpr_dw0(r2));
@@ -6252,7 +6230,7 @@ s390_irgen_CIJ(UChar r1, UChar m3, UShort i4, UChar i2)
    if (m3 == 0) {
    } else {
       if (m3 == 14) {
-         always_goto_and_chase(addr_relative(i4));
+         always_goto(mkaddr_expr(addr_relative(i4)));
       } else {
          assign(op1, get_gpr_w1(r1));
          op2 = (Int)(Char)i2;
@@ -6277,7 +6255,7 @@ s390_irgen_CGIJ(UChar r1, UChar m3, UShort i4, UChar i2)
    if (m3 == 0) {
    } else {
       if (m3 == 14) {
-         always_goto_and_chase(addr_relative(i4));
+         always_goto(mkaddr_expr(addr_relative(i4)));
       } else {
          assign(op1, get_gpr_dw0(r1));
          op2 = (Long)(Char)i2;
@@ -7000,7 +6978,7 @@ s390_irgen_CLRJ(UChar r1, UChar r2, UShort i4, UChar m3)
    if (m3 == 0) {
    } else {
       if (m3 == 14) {
-         always_goto_and_chase(addr_relative(i4));
+         always_goto(mkaddr_expr(addr_relative(i4)));
       } else {
          assign(op1, get_gpr_w1(r1));
          assign(op2, get_gpr_w1(r2));
@@ -7025,7 +7003,7 @@ s390_irgen_CLGRJ(UChar r1, UChar r2, UShort i4, UChar m3)
    if (m3 == 0) {
    } else {
       if (m3 == 14) {
-         always_goto_and_chase(addr_relative(i4));
+         always_goto(mkaddr_expr(addr_relative(i4)));
       } else {
          assign(op1, get_gpr_dw0(r1));
          assign(op2, get_gpr_dw0(r2));
@@ -7098,7 +7076,7 @@ s390_irgen_CLIJ(UChar r1, UChar m3, UShort i4, UChar i2)
    if (m3 == 0) {
    } else {
       if (m3 == 14) {
-         always_goto_and_chase(addr_relative(i4));
+         always_goto(mkaddr_expr(addr_relative(i4)));
       } else {
          assign(op1, get_gpr_w1(r1));
          op2 = (UInt)i2;
@@ -7123,7 +7101,7 @@ s390_irgen_CLGIJ(UChar r1, UChar m3, UShort i4, UChar i2)
    if (m3 == 0) {
    } else {
       if (m3 == 14) {
-         always_goto_and_chase(addr_relative(i4));
+         always_goto(mkaddr_expr(addr_relative(i4)));
       } else {
          assign(op1, get_gpr_dw0(r1));
          op2 = (ULong)i2;
@@ -20643,7 +20621,7 @@ s390_irgen_BPP(UChar m1, UShort i2, IRTemp op3addr)
 }
 
 static const HChar *
-s390_irgen_BPRP(UChar m1, UShort i2, UShort i3)
+s390_irgen_BPRP(UChar m1, UShort i2, UInt i3)
 {
    /* Treat as a no-op */
    return "bprp";
@@ -20676,8 +20654,8 @@ s390_irgen_PPA(UChar m3, UChar r1, UChar r2)
 static void
 s390_irgen_client_request(void)
 {
-   if (0)
-      vex_printf("%%R3 = client_request ( %%R2 )\n");
+   if (UNLIKELY(vex_traceflags & VEX_TRACE_FE))
+      vex_printf("special insn: client_request");
 
    Addr64 next = guest_IA_curr_instr + S390_SPECIAL_OP_PREAMBLE_SIZE
                                      + S390_SPECIAL_OP_SIZE;
@@ -20691,8 +20669,8 @@ s390_irgen_client_request(void)
 static void
 s390_irgen_guest_NRADDR(void)
 {
-   if (0)
-      vex_printf("%%R3 = guest_NRADDR\n");
+   if (UNLIKELY(vex_traceflags & VEX_TRACE_FE))
+      vex_printf("special insn: guest_NRADDR");
 
    put_gpr_dw0(3, IRExpr_Get(S390X_GUEST_OFFSET(guest_NRADDR), Ity_I64));
 }
@@ -20700,6 +20678,9 @@ s390_irgen_guest_NRADDR(void)
 static void
 s390_irgen_call_noredir(void)
 {
+   if (UNLIKELY(vex_traceflags & VEX_TRACE_FE))
+      vex_printf("special insn: call_noredir");
+
    Addr64 next = guest_IA_curr_instr + S390_SPECIAL_OP_PREAMBLE_SIZE
                                      + S390_SPECIAL_OP_SIZE;
 
@@ -20711,6 +20692,30 @@ s390_irgen_call_noredir(void)
 
    dis_res->whatNext = Dis_StopHere;
    dis_res->jk_StopHere = Ijk_NoRedir;
+}
+
+static void
+s390_irgen_inject_ir(void)
+{
+   if (UNLIKELY(vex_traceflags & VEX_TRACE_FE))
+      vex_printf("special insn: inject_ir");
+
+   vex_inject_ir(irsb, Iend_BE);
+
+   /* Invalidate the current insn. The reason is that the IRop we're
+      injecting here can change. In which case the translation has to
+      be redone. For ease of handling, we simply invalidate all the
+      time. */
+   stmt(IRStmt_Put(S390X_GUEST_OFFSET(guest_CMSTART),
+                   mkU64(guest_IA_curr_instr)));
+   stmt(IRStmt_Put(S390X_GUEST_OFFSET(guest_CMLEN),
+                   mkU64(guest_IA_next_instr - guest_IA_curr_instr)));
+   vassert(guest_IA_next_instr - guest_IA_curr_instr ==
+           S390_SPECIAL_OP_PREAMBLE_SIZE + S390_SPECIAL_OP_SIZE);
+
+   put_IA(mkaddr_expr(guest_IA_next_instr));
+   dis_res->whatNext    = Dis_StopHere;
+   dis_res->jk_StopHere = Ijk_InvalICache;
 }
 
 static s390_decode_t
@@ -23775,22 +23780,7 @@ s390_decode_special_and_irgen(const UChar *bytes)
    } else if (bytes[0] == 0x18 && bytes[1] == 0x44 /* lr %r4, %r4 */) {
       s390_irgen_call_noredir();
    } else if (bytes[0] == 0x18 && bytes[1] == 0x55 /* lr %r5, %r5 */) {
-      vex_inject_ir(irsb, Iend_BE);
-
-      /* Invalidate the current insn. The reason is that the IRop we're
-         injecting here can change. In which case the translation has to
-         be redone. For ease of handling, we simply invalidate all the
-         time. */
-      stmt(IRStmt_Put(S390X_GUEST_OFFSET(guest_CMSTART),
-                      mkU64(guest_IA_curr_instr)));
-      stmt(IRStmt_Put(S390X_GUEST_OFFSET(guest_CMLEN),
-                      mkU64(guest_IA_next_instr - guest_IA_curr_instr)));
-      vassert(guest_IA_next_instr - guest_IA_curr_instr ==
-              S390_SPECIAL_OP_PREAMBLE_SIZE + S390_SPECIAL_OP_SIZE);
-
-      put_IA(mkaddr_expr(guest_IA_next_instr));
-      dis_res->whatNext    = Dis_StopHere;
-      dis_res->jk_StopHere = Ijk_InvalICache;
+      s390_irgen_inject_ir();
    } else {
       /* We don't know what it is. */
       return S390_DECODE_UNKNOWN_SPECIAL_INSN;
@@ -23891,12 +23881,10 @@ s390_decode_and_irgen(const UChar *bytes, UInt insn_length, DisResult *dres)
          vpanic("s390_decode_and_irgen");
       }
 
-      vex_printf("%02x%02x", bytes[0], bytes[1]);
-      if (insn_length > 2) {
-         vex_printf(" %02x%02x", bytes[2], bytes[3]);
-      }
-      if (insn_length > 4) {
-         vex_printf(" %02x%02x", bytes[4], bytes[5]);
+      for (unsigned i = 0; i < insn_length; i += 2) {
+         if (i != 0)
+            vex_printf(" ");
+         vex_printf("%02x%02x", bytes[i], bytes[i + 1]);
       }
       vex_printf("\n");
    }
@@ -23933,8 +23921,6 @@ disInstr_S390_WRK(const UChar *insn)
    dres.len        = insn_length;
    dres.jk_StopHere = Ijk_INVALID;
    dres.hint        = Dis_HintNone;
-
-   /* fixs390: consider chasing of conditional jumps */
 
    /* Normal and special instruction handling starts here. */
    if (s390_decode_and_irgen(insn, insn_length, &dres) == 0) {
